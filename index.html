@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8" />
+  <title>BPMN Viewer</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- bpmn-js standardstilar -->
+  <link rel="stylesheet" href="https://unpkg.com/bpmn-js/dist/assets/diagram-js.css">
+  <link rel="stylesheet" href="https://unpkg.com/bpmn-js/dist/assets/bpmn-font/css/bpmn.css">
+  <style>
+    html, body { height: 100%; margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+    #app { display: grid; grid-template-columns: 1fr 320px; height: 100%; }
+    #canvas { background: #fafafa; }
+    #side {
+      border-left: 1px solid #e5e7eb; padding: 12px; overflow: auto;
+      display: flex; flex-direction: column; gap: 12px;
+    }
+    .el { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .k { color: #374151; font-weight: 600; }
+    .v { color: #111827; }
+    /* marker för highlight */
+    .highlight > .djs-outline { stroke: #ef4444 !important; stroke-width: 2px !important; }
+    .highlight > .djs-visual > :nth-child(1) { stroke: #ef4444 !important; }
+    .toolbar { display:flex; gap:8px; flex-wrap: wrap; }
+    button { padding:6px 10px; border:1px solid #d1d5db; background:#fff; border-radius:8px; cursor:pointer; }
+    input[type="text"] { width: 100%; padding:6px 10px; border:1px solid #d1d5db; border-radius:8px; }
+    small { color:#6b7280; }
+    a { color:#2563eb; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="canvas"></div>
+    <aside id="side">
+      <div>
+        <h3 style="margin:0 0 6px 0;">BPMN Viewer</h3>
+        <small>Tips: lägg till <code>?el=&lt;elementId&gt;</code> i URL:en för att hoppa till och markera ett element.</small>
+      </div>
+
+      <div class="toolbar">
+        <button id="btn-zoom-in">Zoom +</button>
+        <button id="btn-zoom-out">Zoom −</button>
+        <button id="btn-reset">Fit</button>
+      </div>
+
+      <div>
+        <label for="elInput" class="k">Gå till element-ID</label>
+        <input id="elInput" type="text" placeholder="t.ex. Activity_11wac6l" />
+        <div class="toolbar">
+          <button id="btn-go">Markera</button>
+          <button id="btn-clear">Rensa markering</button>
+        </div>
+      </div>
+
+      <div id="info">
+        <div><span class="k">Valt element:</span> <span class="v el" id="selId">–</span></div>
+        <div><span class="k">Typ:</span> <span class="v" id="selType">–</span></div>
+        <div><span class="k">Namn:</span> <span class="v" id="selName">–</span></div>
+        <hr/>
+        <div><span class="k">Snabblänkar:</span></div>
+        <div id="links">
+          <small>Välj ett element för att generera länkar (Jira, Playwright, Figma) baserat på ID.</small>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- bpmn-js viewer -->
+  <script src="https://unpkg.com/bpmn-js/dist/bpmn-navigated-viewer.development.js"></script>
+  <script>
+    // === Konfiguration ===
+    const BPMN_PATH = 'credit-process.bpmn'; // byt om du använder annan sökväg
+
+    // (valfritt) dina bas-URL:er – byt till riktiga later
+    const JIRA_BASE = 'https://jira.example.com/issues/?jql=';
+    const PLAYWRIGHT_CODE_SEARCH = 'https://github.com/your-org/your-repo/search?q=';
+    const FIGMA_FILE_BASE = 'https://www.figma.com/file/ABCDE?node-id=';
+
+    // === Init ===
+    const viewer = new BpmnJS({
+      container: '#canvas',
+      height: '100%',
+      additionalModules: [] // håll det enkelt
+    });
+
+    function getParam(name) {
+      const params = new URLSearchParams(window.location.search);
+      return params.get(name);
+    }
+
+    function addMarker(elementId) {
+      try {
+        const canvas = viewer.get('canvas');
+        canvas.addMarker(elementId, 'highlight');
+        canvas.zoom('fit-viewport', 'auto');
+        canvas.scrollToElement(elementId);
+      } catch (e) { /* ignore */ }
+    }
+
+    function clearMarkers() {
+      const canvas = viewer.get('canvas');
+      const elementRegistry = viewer.get('elementRegistry');
+      elementRegistry.getAll().forEach(el => canvas.removeMarker(el.id, 'highlight'));
+    }
+
+    function setSelected(el) {
+      document.getElementById('selId').textContent = el?.id ?? '–';
+      document.getElementById('selType').textContent = el?.type ?? '–';
+      document.getElementById('selName').textContent = el?.businessObject?.name ?? '–';
+
+      const links = document.getElementById('links');
+      links.innerHTML = '';
+      if (!el) {
+        links.innerHTML = '<small>Välj ett element för att generera länkar.</small>';
+        return;
+      }
+
+      // Generera enkla länkar baserat på elementId
+      const elId = encodeURIComponent(el.id);
+
+      // Jira: sök testfall med custom field eller i summary
+      const jiraLink = document.createElement('a');
+      jiraLink.href = JIRA_BASE + encodeURIComponent(`text ~ "${el.id}" OR "BPMN Element ID" ~ "${el.id}"`);
+      jiraLink.target = '_blank';
+      jiraLink.textContent = 'Öppna relaterade Jira-ärenden';
+
+      // GitHub code search (Playwright): leta efter [bpmn:<ID>] i testtitlar
+      const ghLink = document.createElement('a');
+      ghLink.href = PLAYWRIGHT_CODE_SEARCH + encodeURIComponent(`[bpmn:${el.id}]`);
+      ghLink.target = '_blank';
+      ghLink.textContent = 'Sök i Playwright-tester';
+
+      // Figma: om ni använder node-id = samma som BPMN-ID (eller mappa i extensionElements)
+      const figmaLink = document.createElement('a');
+      figmaLink.href = FIGMA_FILE_BASE + encodeURIComponent(el.id.replace(/:/g, '-')); // just ett exempel
+      figmaLink.target = '_blank';
+      figmaLink.textContent = 'Öppna i Figma (node)';
+
+      links.append(jiraLink, document.createElement('br'), ghLink, document.createElement('br'), figmaLink);
+    }
+
+    // Ladda BPMN och init
+    fetch(BPMN_PATH)
+      .then(r => r.text())
+      .then(xml => viewer.importXML(xml))
+      .then(() => {
+        const canvas = viewer.get('canvas');
+        const eventBus = viewer.get('eventBus');
+        const elementRegistry = viewer.get('elementRegistry');
+
+        canvas.zoom('fit-viewport', 'auto');
+
+        // URL-param: ?el=<elementId> för highlight
+        const elParam = getParam('el');
+        if (elParam) {
+          const exists = elementRegistry.get(elParam);
+          if (exists) {
+            addMarker(elParam);
+            setSelected(exists);
+            document.getElementById('elInput').value = elParam;
+          }
+        }
+
+        // Klick-select
+        eventBus.on('element.click', (e) => {
+          const { element } = e;
+          clearMarkers();
+          addMarker(element.id);
+          setSelected(element);
+          history.replaceState(null, '', `?el=${encodeURIComponent(element.id)}`);
+        });
+
+        // knappar
+        document.getElementById('btn-zoom-in').onclick  = () => canvas.zoom(canvas.zoom() + 0.2);
+        document.getElementById('btn-zoom-out').onclick = () => canvas.zoom(canvas.zoom() - 0.2);
+        document.getElementById('btn-reset').onclick    = () => canvas.zoom('fit-viewport', 'auto');
+
+        document.getElementById('btn-go').onclick = () => {
+          const id = document.getElementById('elInput').value.trim();
+          if (!id) return;
+          const el = elementRegistry.get(id);
+          if (el) {
+            clearMarkers();
+            addMarker(id);
+            setSelected(el);
+            history.replaceState(null, '', `?el=${encodeURIComponent(id)}`);
+          } else {
+            alert('Elementet hittades inte i modellen.');
+          }
+        };
+        document.getElementById('btn-clear').onclick = () => {
+          clearMarkers();
+          setSelected(null);
+          history.replaceState(null, '', location.pathname);
+        };
+      })
+      .catch(err => {
+        console.error('Fel vid laddning av BPMN:', err);
+        alert('Kunde inte ladda BPMN-filen. Kontrollera sökvägen och CORS.');
+      });
+  </script>
+</body>
+</html>

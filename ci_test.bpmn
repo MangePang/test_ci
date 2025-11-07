@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:modeler="http://camunda.org/schema/modeler/1.0" xmlns:test="https://sbab.example/test" xmlns:design="https://sbab.example/design" id="Definitions_0dwjhq5" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.28.0" modeler:executionPlatform="Camunda Platform" modeler:executionPlatformVersion="7.22.0">
+  <bpmn:process id="Process_0ob1fb8" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_1">
+      <bpmn:outgoing>Flow_0i7wud8</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Activity_0t3sa8u" name="Steg 1&#10;Inloggning">
+      <bpmn:incoming>Flow_0i7wud8</bpmn:incoming>
+      <bpmn:outgoing>Flow_1tap1t8</bpmn:outgoing>
+      <bpmn:extensionElements>
+        <test:meta>
+          <test:tags>auth,bankid,happy-path</test:tags>
+          <test:priority>H</test:priority>
+          <test:playwrightRef>tests/login_bankid.spec.ts#BankID happy path</test:playwrightRef>
+          <test:jiraKeys>KRE-TC-1001,KRE-TC-1002</test:jiraKeys>
+        </test:meta>
+        <design:meta>
+          <design:figmaUrl>https://www.figma.com/file/ABCDE?node-id=10-100</design:figmaUrl>
+          <design:figmaNodeId>10:100</design:figmaNodeId>
+          <design:figmaComponentKey>cmp_login_bankid_key</design:figmaComponentKey>
+          <design:variant>state=ready,auth=bankid</design:variant>
+        </design:meta>
+      </bpmn:extensionElements>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="Flow_0i7wud8" sourceRef="StartEvent_1" targetRef="Activity_0t3sa8u" />
+
+    <bpmn:task id="Activity_11wac6l" name="Steg 2&#10;Kundens inkomst">
+      <bpmn:incoming>Flow_1tap1t8</bpmn:incoming>
+      <bpmn:outgoing>Flow_0ja9580</bpmn:outgoing>
+      <bpmn:extensionElements>
+        <test:meta>
+          <test:tags>income,validation</test:tags>
+          <test:priority>H</test:priority>
+          <test:playwrightRef>tests/uc_income.spec.ts#Valid income entry</test:playwrightRef>
+          <test:jiraKeys>KRE-TC-1101,KRE-TC-1102</test:jiraKeys>
+        </test:meta>
+        <design:meta>
+          <design:figmaUrl>https://www.figma.com/file/ABCDE?node-id=12-345</design:figmaUrl>
+          <design:figmaNodeId>12:345</design:figmaNodeId>
+          <design:figmaComponentKey>cmp_income_form_key</design:figmaComponentKey>
+          <design:variant>income=present,state=valid</design:variant>
+        </design:meta>
+      </bpmn:extensionElements>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="Flow_1tap1t8" sourceRef="Activity_0t3sa8u" targetRef="Activity_11wac6l" />
+
+    <bpmn:task id="Activity_0ltfew7" name="Steg 3&#10;Kundens lån">
+      <bpmn:incoming>Flow_0ja9580</bpmn:incoming>
+      <bpmn:outgoing>Flow_0y81fp3</bpmn:outgoing>
+      <bpmn:extensionElements>
+        <test:meta>
+          <test:tags>loans,debts,fetch-external</test:tags>
+          <test:priority>M</test:priority>
+          <test:playwrightRef>tests/uc_loans.spec.ts#Existing loans fetched</test:playwrightRef>
+          <test:jiraKeys>KRE-TC-1201</test:jiraKeys>
+        </test:meta>
+        <design:meta>
+          <design:figmaUrl>https://www.figma.com/file/ABCDE?node-id=14-567</design:figmaUrl>
+          <design:figmaNodeId>14:567</design:figmaNodeId>
+          <design:figmaComponentKey>cmp_loans_overview_key</design:figmaComponentKey>
+          <design:variant>hasLoans=true</design:variant>
+        </design:meta>
+      </bpmn:extensionElements>
+    </bpmn:task>
+
+    <bpmn:sequenceFlow id="Flow_0ja9580" sourceRef="Activity_11wac6l" targetRef="Activity_0ltfew7" />
+
+    <bpmn:endEvent id="Event_0udb4lm">
+      <bpmn:incoming>Flow_0y81fp3</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="Flow_0y81fp3" sourceRef="Activity_0ltfew7" targetRef="Event_0udb4lm" />
+  </bpmn:process>
+
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_0ob1fb8">
+      <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="StartEvent_1">
+        <dc:Bounds x="179" y="99" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0t3sa8u_di" bpmnElement="Activity_0t3sa8u">
+        <dc:Bounds x="270" y="77" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_11wac6l_di" bpmnElement="Activity_11wac6l">
+        <dc:Bounds x="430" y="77" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0ltfew7_di" bpmnElement="Activity_0ltfew7">
+        <dc:Bounds x="590" y="77" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_0udb4lm_di" bpmnElement="Event_0udb4lm">
+        <dc:Bounds x="752" y="99" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_0i7wud8_di" bpmnElement="Flow_0i7wud8">
+        <di:waypoint x="215" y="117" />
+        <di:waypoint x="270" y="117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1tap1t8_di" bpmnElement="Flow_1tap1t8">
+        <di:waypoint x="370" y="117" />
+        <di:waypoint x="430" y="117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0ja9580_di" bpmnElement="Flow_0ja9580">
+        <di:waypoint x="530" y="117" />
+        <di:waypoint x="590" y="117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0y81fp3_di" bpmnElement="Flow_0y81fp3">
+        <di:waypoint x="690" y="117" />
+        <di:waypoint x="752" y="117" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

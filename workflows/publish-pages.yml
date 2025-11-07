@@ -1,0 +1,21 @@
+# .github/workflows/publish-pages.yml
+name: Publish BPMN Viewer
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - '**/*.bpmn'
+      - 'index.html'
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Sync latest BPMN to /docs
+        run: |
+          cp bpmn/credit-process.bpmn docs/credit-process.bpmn
+          git config user.name "ci-bot"
+          git config user.email "ci-bot@example.com"
+          git add docs/credit-process.bpmn
+          git commit -m "Update BPMN in docs" || echo "No changes"
+          git push

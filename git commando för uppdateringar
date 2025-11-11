@@ -1,0 +1,14 @@
+# 1) Spara dina lokala ändringar
+git add .
+git commit -m "lokala ändringar"
+
+# 2) Hämta senaste från GitHub och lägg dina commits ovanpå
+git fetch origin main
+git rebase origin/main
+# (Om konflikt: öppna filen, fixa, kör:
+#   git add <filen>
+#   git rebase --continue
+# Vid behov avbryt rebase: git rebase --abort)
+
+# 3) Pusha upp
+git push origin main

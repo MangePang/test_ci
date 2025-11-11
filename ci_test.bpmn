@@ -16,8 +16,9 @@
           <test:jiraKeys>KRE-TC-1001,KRE-TC-1002</test:jiraKeys>
         </test:meta>
         <design:meta>
-          <design:figmaUrl>https://www.figma.com/file/ABCDE?node-id=10-100</design:figmaUrl>
-          <design:figmaNodeId>10:100</design:figmaNodeId>
+          <!-- Figma frame: Inloggning -->
+          <design:figmaUrl>https://www.figma.com/design/iSRYo9n5XbWcTuqPjAxMMZ/ci_test?node-id=2-11</design:figmaUrl>
+          <design:figmaNodeId>2:11</design:figmaNodeId>
           <design:figmaComponentKey>cmp_login_bankid_key</design:figmaComponentKey>
           <design:variant>state=ready,auth=bankid</design:variant>
         </design:meta>
@@ -33,14 +34,14 @@
         <test:meta>
           <test:tags>income,validation</test:tags>
           <test:priority>H</test:priority>
-          <!-- ✨ Uppdaterade refs som matchar dina faktiska filer/titlar -->
           <test:playwrightRef>tests/income.spec.ts#Valid income (mock)</test:playwrightRef>
           <test:playwrightRef>tests/income.spec.ts#Missing income -> error (mock)</test:playwrightRef>
           <test:jiraKeys>KRE-TC-1101,KRE-TC-1102</test:jiraKeys>
         </test:meta>
         <design:meta>
-          <design:figmaUrl>https://www.figma.com/file/ABCDE?node-id=12-345</design:figmaUrl>
-          <design:figmaNodeId>12:345</design:figmaNodeId>
+          <!-- Figma frame: Inkomst -->
+          <design:figmaUrl>https://www.figma.com/design/iSRYo9n5XbWcTuqPjAxMMZ/ci_test?node-id=2-4</design:figmaUrl>
+          <design:figmaNodeId>2:4</design:figmaNodeId>
           <design:figmaComponentKey>cmp_income_form_key</design:figmaComponentKey>
           <design:variant>income=present,state=valid</design:variant>
         </design:meta>
@@ -60,8 +61,9 @@
           <test:jiraKeys>KRE-TC-1201</test:jiraKeys>
         </test:meta>
         <design:meta>
-          <design:figmaUrl>https://www.figma.com/file/ABCDE?node-id=14-567</design:figmaUrl>
-          <design:figmaNodeId>14:567</design:figmaNodeId>
+          <!-- Figma frame: Lån -->
+          <design:figmaUrl>https://www.figma.com/design/iSRYo9n5XbWcTuqPjAxMMZ/ci_test?node-id=2-12</design:figmaUrl>
+          <design:figmaNodeId>2:12</design:figmaNodeId>
           <design:figmaComponentKey>cmp_loans_overview_key</design:figmaComponentKey>
           <design:variant>hasLoans=true</design:variant>
         </design:meta>

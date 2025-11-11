@@ -19,7 +19,6 @@
     .el { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
     .k { color: #374151; font-weight: 600; }
     .v { color: #111827; }
-    /* marker för highlight */
     .highlight > .djs-outline { stroke: #ef4444 !important; stroke-width: 2px !important; }
     .highlight > .djs-visual > :nth-child(1) { stroke: #ef4444 !important; }
     .toolbar { display:flex; gap:8px; flex-wrap: wrap; }
@@ -68,293 +67,272 @@
   </div>
 
   <!-- bpmn-js viewer -->
-<script src="https://unpkg.com/bpmn-js/dist/bpmn-navigated-viewer.development.js"></script>
-<script>
-  // === Konfiguration ===
-  const RAW_BPMN_PATH = 'ci_test.bpmn'; // byt om du använder annan sökväg
-  const BPMN_PATH = new URL(RAW_BPMN_PATH, window.location.href).toString() + `?v=${Date.now()}`;
+  <script src="https://unpkg.com/bpmn-js/dist/bpmn-navigated-viewer.development.js"></script>
+  <script>
+    // === Konfiguration ===
+    const RAW_BPMN_PATH = 'ci_test.bpmn'; // byt om du använder annan sökväg
+    const BPMN_PATH = new URL(RAW_BPMN_PATH, window.location.href).toString() + `?v=${Date.now()}`;
 
-  // Baslänkar – uppdatera till era riktiga miljöer
-  const JIRA_BASE_QUERY = 'https://jira.example.com/issues/?jql=';            // Jira sök-URL
-  const PLAYWRIGHT_CODE_SEARCH = 'https://github.com/mangepang/test_ci/search?q='; // GitHub codesearch
-  // Om figmaUrl saknas men ni har nodeId/fil – sätt FILE_KEY här så kan vi bygga URL
-  const FIGMA_FILE_KEY = 'ABCDE'; // valfritt. Lämna som '' om du alltid har full figmaUrl i BPMN.
+    // Repo-konfig för länkar
+    const GH_OWNER = 'mangepang';
+    const GH_REPO  = 'test_ci';
+    const GH_BRANCH = 'main';
 
-  const viewer = new BpmnJS({ container: '#canvas', height: '100%' });
+    // Baslänkar
+    const JIRA_BASE_QUERY = 'https://jira.example.com/issues/?jql='; // Jira-sök (byt till er)
+    const PLAYWRIGHT_CODE_SEARCH = `https://github.com/${GH_OWNER}/${GH_REPO}/search?q=`;
+    const PLAYWRIGHT_FILE_BASE   = `https://github.com/${GH_OWNER}/${GH_REPO}/blob/${GH_BRANCH}/`;
 
-  // ===== Helpers för parsing & rendering =====
-  const metaById = new Map();
+    // Figma (om full URL saknas i BPMN)
+    const FIGMA_FILE_KEY = 'ABCDE'; // valfritt – lämna '' om ni alltid har full figmaUrl
 
-  function ln(tagName) {
-    // localName utan prefix: "test:playwrightRef" -> "playwrightRef"
-    return (tagName || '').split(':').pop();
-  }
+    const viewer = new BpmnJS({ container: '#canvas', height: '100%' });
 
-  function text(el) {
-    return (el && (el.textContent || '').trim()) || '';
-  }
+    // ===== Helpers för parsing & rendering =====
+    const metaById = new Map();
 
-  function toList(val) {
-    return (val || '')
-      .split(/[,|]/)
-      .map(s => s.trim())
-      .filter(Boolean);
-  }
+    const ln = (tagName) => (tagName || '').split(':').pop();
+    const text = (el) => (el && (el.textContent || '').trim()) || '';
+    const toList = (val) => (val || '').split(/[,|]/).map(s => s.trim()).filter(Boolean);
 
-  function buildMetaIndex(xmlString) {
-    const dom = new DOMParser().parseFromString(xmlString, 'text/xml');
+    function buildMetaIndex(xmlString) {
+      const dom = new DOMParser().parseFromString(xmlString, 'text/xml');
+      const elWithExt = dom.querySelectorAll('*[id] > bpmn\\:extensionElements, *[id] > extensionElements');
 
-    // Hitta alla element med extensionElements
-    const elWithExt = dom.querySelectorAll('*[id] > bpmn\\:extensionElements, *[id] > extensionElements');
-
-    elWithExt.forEach(ext => {
-      const parent = ext.parentNode;
-      const id = parent.getAttribute('id');
-      if (!id) return;
-
-      const meta = {
-        // test:
-        playwrightRefs: [],
-        jiraKeys: [],
-        tags: [],
-        priority: '',
-
-        // design:
-        figmaUrl: '',
-        figmaNodeId: '',
-        figmaComponentKey: '',
-        variant: ''
-      };
-
-      // Gå igenom alla barn till extensionElements (t.ex. <test:meta>, <design:meta>)
-      Array.from(ext.children || []).forEach(child => {
-        const childName = ln(child.tagName);
-
-        // Vi bryr oss om *innehållet* under meta-noderna
-        Array.from(child.children || []).forEach(kv => {
-          const name = ln(kv.tagName);
-          const val = text(kv);
-
-          switch (name) {
-            case 'playwrightRef':   meta.playwrightRefs.push(val); break;
-            case 'jiraKeys':        meta.jiraKeys.push(...toList(val)); break;
-            case 'tags':            meta.tags.push(...toList(val)); break;
-            case 'priority':        meta.priority = val; break;
-
-            case 'figmaUrl':        meta.figmaUrl = val; break;
-            case 'figmaNodeId':     meta.figmaNodeId = val; break;
-            case 'figmaComponentKey': meta.figmaComponentKey = val; break;
-            case 'variant':         meta.variant = val; break;
-            default: /* ignore */ ;
-          }
-        });
-      });
-
-      metaById.set(id, meta);
-    });
-  }
-
-  function buildFigmaUrl(meta) {
-    // 1) Om en full figmaUrl finns – använd den
-    if (meta.figmaUrl) return meta.figmaUrl;
-
-    // 2) Om vi har file key + node-id – bygg URL
-    if (FIGMA_FILE_KEY && meta.figmaNodeId) {
-      return `https://www.figma.com/file/${FIGMA_FILE_KEY}?node-id=${encodeURIComponent(meta.figmaNodeId)}`;
-    }
-
-    return '';
-  }
-
-  function getParam(name) {
-    const params = new URLSearchParams(window.location.search);
-    return params.get(name);
-  }
-
-  function addMarker(elementId) {
-    try {
-      const canvas = viewer.get('canvas');
-      canvas.addMarker(elementId, 'highlight');
-      canvas.zoom('fit-viewport', 'auto');
-      canvas.scrollToElement(elementId);
-    } catch {}
-  }
-
-  function clearMarkers() {
-    const canvas = viewer.get('canvas');
-    const elementRegistry = viewer.get('elementRegistry');
-    elementRegistry.getAll().forEach(el => canvas.removeMarker(el.id, 'highlight'));
-  }
-
-  function setSelected(el) {
-    const links = document.getElementById('links');
-    const idEl = document.getElementById('selId');
-    const typeEl = document.getElementById('selType');
-    const nameEl = document.getElementById('selName');
-
-    idEl.textContent   = el?.id ?? '–';
-    typeEl.textContent = el?.type ?? '–';
-    nameEl.textContent = el?.businessObject?.name ?? '–';
-
-    links.innerHTML = '';
-    if (!el) {
-      links.innerHTML = '<small>Välj ett element för att generera länkar.</small>';
-      return;
-    }
-
-    const elId = el.id;
-    const meta = metaById.get(elId) || {};
-
-    // --- Playwright ---
-    if (meta.playwrightRefs && meta.playwrightRefs.length) {
-      const h = document.createElement('div');
-      h.innerHTML = '<div class="k" style="margin-top:6px;">Playwright</div>';
-      links.appendChild(h);
-
-      meta.playwrightRefs.forEach(ref => {
-        // ref-format: path#Scenario Title (enligt tidigare exempel)
-        const a = document.createElement('a');
-        a.href = PLAYWRIGHT_CODE_SEARCH + encodeURIComponent(ref);
-        a.target = '_blank';
-        a.textContent = `🔎 ${ref}`;
-        links.appendChild(a);
-        links.appendChild(document.createElement('br'));
-      });
-
-      // extra: repo-sök på "[bpmn:ID]"
-      const codeSearch = document.createElement('a');
-      codeSearch.href = PLAYWRIGHT_CODE_SEARCH + encodeURIComponent(`[bpmn:${elId}]`);
-      codeSearch.target = '_blank';
-      codeSearch.textContent = '🔎 Sök [bpmn:ID] i testkoden';
-      links.appendChild(codeSearch);
-      links.appendChild(document.createElement('br'));
-    }
-
-    // --- Jira ---
-    if (meta.jiraKeys && meta.jiraKeys.length) {
-      const h = document.createElement('div');
-      h.innerHTML = '<div class="k" style="margin-top:6px;">Jira</div>';
-      links.appendChild(h);
-
-      // Direkta ärendelänkar
-      meta.jiraKeys.forEach(key => {
-        const a = document.createElement('a');
-        a.href = `https://jira.example.com/browse/${encodeURIComponent(key)}`;
-        a.target = '_blank';
-        a.textContent = `🔗 ${key}`;
-        links.appendChild(a);
-        links.appendChild(document.createElement('br'));
-      });
-    }
-
-    // Jira fallback: sök på ID
-    const jiraSearch = document.createElement('a');
-    jiraSearch.href = JIRA_BASE_QUERY + encodeURIComponent(`text ~ "${elId}" OR "BPMN Element ID" ~ "${elId}"`);
-    jiraSearch.target = '_blank';
-    jiraSearch.textContent = '🔎 Sök ärenden kopplade till ID';
-    links.appendChild(jiraSearch);
-    links.appendChild(document.createElement('br'));
-
-    // --- Figma ---
-    const figmaResolved = buildFigmaUrl(meta);
-    if (figmaResolved) {
-      const h = document.createElement('div');
-      h.innerHTML = '<div class="k" style="margin-top:6px;">Figma</div>';
-      links.appendChild(h);
-
-      const a = document.createElement('a');
-      a.href = figmaResolved;
-      a.target = '_blank';
-      a.textContent = '🎨 Öppna relaterad Figma-skärm';
-      links.appendChild(a);
-      links.appendChild(document.createElement('br'));
-
-      if (meta.variant) {
-        const v = document.createElement('div');
-        v.innerHTML = `<small>Variant: <code>${meta.variant}</code></small>`;
-        links.appendChild(v);
-      }
-    }
-
-    // --- Små badges (tags/prio) ---
-    const chips = [];
-    if (meta.priority) chips.push(`Prio: ${meta.priority}`);
-    if (meta.tags && meta.tags.length) chips.push(`Taggar: ${meta.tags.join(', ')}`);
-    if (chips.length) {
-      const c = document.createElement('div');
-      c.innerHTML = `<small>${chips.join(' • ')}</small>`;
-      c.style.marginTop = '6px';
-      links.appendChild(c);
-    }
-  }
-
-  // ===== Ladda BPMN, bygg meta, init viewer =====
-  fetch(BPMN_PATH, { cache: 'no-store' })
-    .then(async (r) => {
-      if (!r.ok) throw new Error(`HTTP ${r.status} for ${r.url}`);
-      const xml = await r.text();
-
-      // Bygg index från XML *innan* import (robust mot custom namespaces)
-      buildMetaIndex(xml);
-
-      // Importera till bpmn-js
-      await viewer.importXML(xml);
-
-      const canvas = viewer.get('canvas');
-      const eventBus = viewer.get('eventBus');
-      const elementRegistry = viewer.get('elementRegistry');
-
-      canvas.zoom('fit-viewport', 'auto');
-
-      // URL-param: ?el=<elementId>
-      const elParam = getParam('el');
-      if (elParam) {
-        const exists = elementRegistry.get(elParam);
-        if (exists) {
-          addMarker(elParam);
-          setSelected(exists);
-          document.getElementById('elInput').value = elParam;
-        }
-      }
-
-      // Klick-select
-      eventBus.on('element.click', (e) => {
-        const { element } = e;
-        clearMarkers();
-        addMarker(element.id);
-        setSelected(element);
-        history.replaceState(null, '', `?el=${encodeURIComponent(element.id)}`);
-      });
-
-      // Knappar
-      const canvasApi = viewer.get('canvas');
-      document.getElementById('btn-zoom-in').onclick  = () => canvasApi.zoom(canvasApi.zoom() + 0.2);
-      document.getElementById('btn-zoom-out').onclick = () => canvasApi.zoom(canvasApi.zoom() - 0.2);
-      document.getElementById('btn-reset').onclick    = () => canvasApi.zoom('fit-viewport', 'auto');
-
-      document.getElementById('btn-go').onclick = () => {
-        const id = document.getElementById('elInput').value.trim();
+      elWithExt.forEach(ext => {
+        const parent = ext.parentNode;
+        const id = parent.getAttribute('id');
         if (!id) return;
-        const el = elementRegistry.get(id);
-        if (el) {
-          clearMarkers();
-          addMarker(id);
-          setSelected(el);
-          history.replaceState(null, '', `?el=${encodeURIComponent(id)}`);
-        } else {
-          alert('Elementet hittades inte i modellen.');
+
+        const meta = {
+          playwrightRefs: [],
+          jiraKeys: [],
+          tags: [],
+          priority: '',
+          figmaUrl: '',
+          figmaNodeId: '',
+          figmaComponentKey: '',
+          variant: ''
+        };
+
+        Array.from(ext.children || []).forEach(child => {
+          Array.from(child.children || []).forEach(kv => {
+            const name = ln(kv.tagName);
+            const val = text(kv);
+
+            switch (name) {
+              case 'playwrightRef':    meta.playwrightRefs.push(val); break;
+              case 'jiraKeys':         meta.jiraKeys.push(...toList(val)); break;
+              case 'tags':             meta.tags.push(...toList(val)); break;
+              case 'priority':         meta.priority = val; break;
+              case 'figmaUrl':         meta.figmaUrl = val; break;
+              case 'figmaNodeId':      meta.figmaNodeId = val; break;
+              case 'figmaComponentKey':meta.figmaComponentKey = val; break;
+              case 'variant':          meta.variant = val; break;
+              default: /* ignore */ ;
+            }
+          });
+        });
+
+        metaById.set(id, meta);
+      });
+    }
+
+    function buildFigmaUrl(meta) {
+      if (meta.figmaUrl) return meta.figmaUrl;
+      if (FIGMA_FILE_KEY && meta.figmaNodeId) {
+        return `https://www.figma.com/file/${FIGMA_FILE_KEY}?node-id=${encodeURIComponent(meta.figmaNodeId)}`;
+      }
+      return '';
+    }
+
+    const getParam = (name) => new URLSearchParams(window.location.search).get(name);
+
+    function addMarker(elementId) {
+      try {
+        const canvas = viewer.get('canvas');
+        canvas.addMarker(elementId, 'highlight');
+        canvas.zoom('fit-viewport', 'auto');
+        canvas.scrollToElement(elementId);
+      } catch {}
+    }
+
+    function clearMarkers() {
+      const canvas = viewer.get('canvas');
+      const elementRegistry = viewer.get('elementRegistry');
+      elementRegistry.getAll().forEach(el => canvas.removeMarker(el.id, 'highlight'));
+    }
+
+    function setSelected(el) {
+      const links = document.getElementById('links');
+      const idEl = document.getElementById('selId');
+      const typeEl = document.getElementById('selType');
+      const nameEl = document.getElementById('selName');
+
+      idEl.textContent   = el?.id ?? '–';
+      typeEl.textContent = el?.type ?? '–';
+      nameEl.textContent = el?.businessObject?.name ?? '–';
+
+      links.innerHTML = '';
+      if (!el) {
+        links.innerHTML = '<small>Välj ett element för att generera länkar.</small>';
+        return;
+      }
+
+      const elId = el.id;
+      const meta = metaById.get(elId) || {};
+
+      // --- Playwright ---
+      if (meta.playwrightRefs && meta.playwrightRefs.length) {
+        const h = document.createElement('div');
+        h.innerHTML = '<div class="k" style="margin-top:6px;">Playwright</div>';
+        links.appendChild(h);
+
+        meta.playwrightRefs.forEach(ref => {
+          // Förväntat format: "tests/uc_income.spec.ts#Valid income entry"
+          const [path, title] = ref.split('#');
+          const safePath = (path || '').replace(/^\/+/, ''); // ta bort ev. ledande "/"
+          const fileUrl = PLAYWRIGHT_FILE_BASE + encodeURI(safePath);
+
+          const aFile = document.createElement('a');
+          aFile.href = fileUrl;
+          aFile.target = '_blank';
+          aFile.textContent = `📄 ${safePath}${title ? ` — ${title}` : ''}`;
+          links.appendChild(aFile);
+          links.appendChild(document.createElement('br'));
+        });
+
+        // Repo-sök på "[bpmn:ID]" begränsat till tests/ och code
+        const q = `path:tests "[bpmn:${elId}]"`;
+        const codeSearch = document.createElement('a');
+        codeSearch.href = `${PLAYWRIGHT_CODE_SEARCH}${encodeURIComponent(q)}&type=code`;
+        codeSearch.target = '_blank';
+        codeSearch.textContent = '🔎 Sök [bpmn:ID] i testkoden';
+        links.appendChild(codeSearch);
+        links.appendChild(document.createElement('br'));
+      }
+
+      // --- Jira ---
+      if (meta.jiraKeys && meta.jiraKeys.length) {
+        const h = document.createElement('div');
+        h.innerHTML = '<div class="k" style="margin-top:6px;">Jira</div>';
+        links.appendChild(h);
+
+        meta.jiraKeys.forEach(key => {
+          const a = document.createElement('a');
+          a.href = `https://jira.example.com/browse/${encodeURIComponent(key)}`;
+          a.target = '_blank';
+          a.textContent = `🔗 ${key}`;
+          links.appendChild(a);
+          links.appendChild(document.createElement('br'));
+        });
+      }
+
+      // Jira fallback: sök på ID
+      const jiraSearch = document.createElement('a');
+      jiraSearch.href = JIRA_BASE_QUERY + encodeURIComponent(`text ~ "${elId}" OR "BPMN Element ID" ~ "${elId}"`);
+      jiraSearch.target = '_blank';
+      jiraSearch.textContent = '🔎 Sök ärenden kopplade till ID';
+      links.appendChild(jiraSearch);
+      links.appendChild(document.createElement('br'));
+
+      // --- Figma ---
+      const figmaResolved = buildFigmaUrl(meta);
+      if (figmaResolved) {
+        const h = document.createElement('div');
+        h.innerHTML = '<div class="k" style="margin-top:6px;">Figma</div>';
+        links.appendChild(h);
+
+        const a = document.createElement('a');
+        a.href = figmaResolved;
+        a.target = '_blank';
+        a.textContent = '🎨 Öppna relaterad Figma-skärm';
+        links.appendChild(a);
+        links.appendChild(document.createElement('br'));
+
+        if (meta.variant) {
+          const v = document.createElement('div');
+          v.innerHTML = `<small>Variant: <code>${meta.variant}</code></small>`;
+          links.appendChild(v);
         }
-      };
-      document.getElementById('btn-clear').onclick = () => {
-        clearMarkers();
-        setSelected(null);
-        history.replaceState(null, '', location.pathname);
-      };
-    })
-    .catch(err => {
-      console.error('Fel vid laddning av BPMN:', err);
-      alert(`Kunde inte ladda BPMN-filen.\n${err.message}\n\nKolla att filen finns på:\n${RAW_BPMN_PATH}`);
-    });
-</script>
+      }
+
+      // --- Badges (taggar/prio) ---
+      const chips = [];
+      if (meta.priority) chips.push(`Prio: ${meta.priority}`);
+      if (meta.tags && meta.tags.length) chips.push(`Taggar: ${meta.tags.join(', ')}`);
+      if (chips.length) {
+        const c = document.createElement('div');
+        c.innerHTML = `<small>${chips.join(' • ')}</small>`;
+        c.style.marginTop = '6px';
+        links.appendChild(c);
+      }
+    }
+
+    // ===== Ladda BPMN, bygg meta, init viewer =====
+    fetch(BPMN_PATH, { cache: 'no-store' })
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status} for ${r.url}`);
+        const xml = await r.text();
+
+        buildMetaIndex(xml);           // indexera extensionElements
+        await viewer.importXML(xml);   // ladda in modellen
+
+        const canvas = viewer.get('canvas');
+        const eventBus = viewer.get('eventBus');
+        const elementRegistry = viewer.get('elementRegistry');
+
+        canvas.zoom('fit-viewport', 'auto');
+
+        // URL-param: ?el=<elementId>
+        const elParam = getParam('el');
+        if (elParam) {
+          const exists = elementRegistry.get(elParam);
+          if (exists) {
+            addMarker(elParam);
+            setSelected(exists);
+            document.getElementById('elInput').value = elParam;
+          }
+        }
+
+        // Klick-select
+        eventBus.on('element.click', (e) => {
+          const { element } = e;
+          clearMarkers();
+          addMarker(element.id);
+          setSelected(element);
+          history.replaceState(null, '', `?el=${encodeURIComponent(element.id)}`);
+        });
+
+        // Knappar
+        const canvasApi = viewer.get('canvas');
+        document.getElementById('btn-zoom-in').onclick  = () => canvasApi.zoom(canvasApi.zoom() + 0.2);
+        document.getElementById('btn-zoom-out').onclick = () => canvasApi.zoom(canvasApi.zoom() - 0.2);
+        document.getElementById('btn-reset').onclick    = () => canvasApi.zoom('fit-viewport', 'auto');
+
+        document.getElementById('btn-go').onclick = () => {
+          const id = document.getElementById('elInput').value.trim();
+          if (!id) return;
+          const el = elementRegistry.get(id);
+          if (el) {
+            clearMarkers();
+            addMarker(id);
+            setSelected(el);
+            history.replaceState(null, '', `?el=${encodeURIComponent(id)}`);
+          } else {
+            alert('Elementet hittades inte i modellen.');
+          }
+        };
+        document.getElementById('btn-clear').onclick = () => {
+          clearMarkers();
+          setSelected(null);
+          history.replaceState(null, '', location.pathname);
+        };
+      })
+      .catch(err => {
+        console.error('Fel vid laddning av BPMN:', err);
+        alert(`Kunde inte ladda BPMN-filen.\n${err.message}\n\nKolla att filen finns på:\n${RAW_BPMN_PATH}`);
+      });
+  </script>
 </body>
 </html>

@@ -1,0 +1,73 @@
+name: Playwright (impact from BPMN changes)
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - '**/*.bpmn'
+      - 'tests/**'
+      - 'playwright.config.*'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - '**/*.bpmn'
+      - 'tests/**'
+      - 'playwright.config.*'
+
+jobs:
+  impact:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # behövs för att kunna diffa
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
+
+      - name: Extract changed BPMN element IDs
+        id: impact
+        run: |
+          # Diffa senaste commit mot föregående
+          git diff -U0 HEAD~1 HEAD -- '*.bpmn' > bpmn.diff || true
+          # Plocka id-attribut ur diffen (adderade/ändrade rader)
+          awk '/^\+.*id="/{print}' bpmn.diff | \
+            grep -oE 'id="[^"]+"' | sed 's/id="//; s/"$//' | \
+            sort -u > changed_ids.txt || true
+
+          echo "Changed BPMN IDs:"
+          cat changed_ids.txt || true
+
+          if [ -s changed_ids.txt ]; then
+            IDS=$(paste -sd'|' changed_ids.txt)
+            echo "ids_regex=$IDS" >> $GITHUB_OUTPUT
+          else
+            echo "ids_regex=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run Playwright tests for impacted IDs
+        if: ${{ steps.impact.outputs.ids_regex != '' }}
+        run: |
+          echo "Running tests matching: [bpmn:(${ { steps.impact.outputs.ids_regex } })]"
+          npx playwright test -g "\[bpmn:(${ { steps.impact.outputs.ids_regex } })\]"
+
+      - name: Fallback — run full suite (no impacted IDs found)
+        if: ${{ steps.impact.outputs.ids_regex == '' }}
+        run: npx playwright test
+
+      - name: Upload HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-impact
+          path: playwright-report
+          retention-days: 7

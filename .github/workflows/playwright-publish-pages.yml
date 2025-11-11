@@ -1,0 +1,67 @@
+name: Playwright Tests + Publish Report to Pages
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: write     # behövs för att committa rapporten
+  actions: read
+
+jobs:
+  test-and-publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
+
+      - name: Run Playwright tests
+        run: npx playwright test
+        env:
+          CI: true
+
+      # --- Publish HTML report into repo under /reports ---
+      - name: Publish report into /reports
+        if: always()
+        run: |
+          set -e
+          RUN_NUM=${{ github.run_number }}
+          mkdir -p reports
+          rm -rf reports/latest
+          mkdir -p "reports/${RUN_NUM}"
+          cp -R playwright-report/* "reports/${RUN_NUM}/"
+          cp -R "reports/${RUN_NUM}" reports/latest
+
+          # Skapa enkel index med länkar
+          cat > reports/index.html << 'EOF'
+          <!doctype html><meta charset="utf-8">
+          <title>Test Reports</title>
+          <h1>Playwright Reports</h1>
+          <p><a href="./latest/">Latest</a></p>
+          <script>
+            // Listar mappar grovt om directory listing är avstängd
+          </script>
+          <p>Tip: öppna <code>/reports/latest/</code> för senaste körningen.</p>
+          EOF
+
+          # Commit & push
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add reports
+          git commit -m "Publish Playwright report (run ${RUN_NUM})" || echo "No report changes"
+          git push origin ${{ github.ref_name }} || true

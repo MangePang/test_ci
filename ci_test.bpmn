@@ -33,7 +33,9 @@
         <test:meta>
           <test:tags>income,validation</test:tags>
           <test:priority>H</test:priority>
-          <test:playwrightRef>tests/uc_income.spec.ts#Valid income entry</test:playwrightRef>
+          <!-- ✨ Uppdaterade refs som matchar dina faktiska filer/titlar -->
+          <test:playwrightRef>tests/income.spec.ts#Valid income (mock)</test:playwrightRef>
+          <test:playwrightRef>tests/income.spec.ts#Missing income -> error (mock)</test:playwrightRef>
           <test:jiraKeys>KRE-TC-1101,KRE-TC-1102</test:jiraKeys>
         </test:meta>
         <design:meta>

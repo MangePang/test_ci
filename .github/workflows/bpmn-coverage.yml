@@ -1,0 +1,44 @@
+name: BPMN Coverage Report
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'ci_test.bpmn'
+      - 'tests/**'
+      - 'scripts/generate-bpmn-test-report.mjs'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Generate report
+        run: npm run report:bpmn
+
+      - name: Publish to /reports/coverage
+        run: |
+          set -e
+          mkdir -p reports/coverage
+          cp bpmn-test-report.html reports/coverage/index.html
+          cp bpmn-test-report.csv reports/coverage/bpmn-test-report.csv
+          cp bpmn-test-report.json reports/coverage/bpmn-test-report.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add reports/coverage
+          git commit -m "Update BPMN coverage report" || echo "No changes"
+          git push origin ${{ github.ref_name }} || true

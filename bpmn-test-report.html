@@ -1,0 +1,430 @@
+<!doctype html>
+  <html lang="sv">
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>BPMN ↔ Test Coverage</title>
+  <style>
+  @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
+
+  :root{
+    --md-surface:#fff;
+    --md-on-surface:#1f2937;
+    --md-surface-variant:#f3f4f6;
+    --md-outline:#e5e7eb;
+    --md-primary:#1a73e8;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;font-family:Roboto,system-ui,-apple-system,Segoe UI,Arial,sans-serif;color:var(--md-on-surface);background:#fafafa}
+  .appbar{position:sticky;top:0;z-index:10;background:var(--md-surface);border-bottom:1px solid var(--md-outline);padding:12px 16px;display:flex;gap:12px;align-items:center}
+  .appbar h1{font-size:18px;margin:0;font-weight:600}
+  .badge{display:inline-flex;align-items:center;gap:6px;padding:2px 8px;border-radius:999px;font-size:12px;border:1px solid var(--md-outline);background:var(--md-surface-variant)}
+  .chip{display:inline-flex;gap:6px;padding:4px 8px;border-radius:999px;font-size:12px;background:var(--md-surface-variant)}
+  .container{max-width:1200px;margin:18px auto;padding:0 16px}
+  .card{background:var(--md-surface);border:1px solid var(--md-outline);border-radius:16px;box-shadow:0 1px 2px rgb(0 0 0 / 8%);overflow:hidden}
+  .card-header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--md-outline)}
+  .search{display:flex;align-items:center;gap:8px;border:1px solid var(--md-outline);border-radius:12px;padding:8px 10px;background:#fff;min-width:260px}
+  .search input{border:none;outline:none;font-size:14px;width:220px}
+  table{width:100%;border-collapse:separate;border-spacing:0}
+  thead th{position:sticky;top:0;background:var(--md-surface-variant);text-align:left;font-weight:600;font-size:12px;letter-spacing:.02em;color:#374151;padding:10px;border-bottom:1px solid var(--md-outline)}
+  tbody td{padding:10px;border-bottom:1px solid var(--md-outline);vertical-align:top;font-size:14px}
+  tbody tr:hover{background:#f9fafb}
+  .mono{font-family:ui-monospace,Menlo,Consolas,monospace}
+  .pill-ok{background:rgba(34,197,94,.12);color:#065f46;border:1px solid rgba(34,197,94,.25);display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px}
+  .pill-miss{background:rgba(239,68,68,.10);color:#7f1d1d;border:1px solid rgba(239,68,68,.25);display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap}
+  .btn{border:1px solid var(--md-outline);background:#fff;border-radius:12px;padding:8px 12px;cursor:pointer;font-size:14px}
+  .btn:hover{background:#f3f4f6}
+  .section{margin-top:24px}
+  a{color:var(--md-primary);text-decoration:none}
+  a:hover{text-decoration:underline}
+  </style>
+  <body>
+    <div class="appbar">
+      <h1>BPMN ↔ Test Coverage</h1>
+      <span class="badge">Genererad: 2025-11-12 20:14:04.336</span>
+      <div class="toolbar" style="margin-left:auto">
+        <div class="search">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M21 21l-4.35-4.35m1.6-4.65a6.95 6.95 0 11-13.9 0 6.95 6.95 0 0113.9 0z" stroke="#6b7280" stroke-width="2" stroke-linecap="round"/></svg>
+          <input id="q" placeholder="Filtrera (ID, namn, taggar, Jira, status)…" />
+        </div>
+        <button class="btn" id="show-missing">Visa bara Missing</button>
+        <button class="btn" id="reset">Rensa filter</button>
+      </div>
+    </div>
+
+    <div class="container">
+      <div class="card">
+        <div class="card-header">
+          <div style="display:flex;align-items:center;gap:8px">
+            <h2 style="margin:0;font-size:16px">Översikt</h2>
+          </div>
+          <div style="color:#6b7280;font-size:13px">Rader: 22 • Orphans: 0</div>
+        </div>
+        <div style="overflow:auto;max-height:70vh">
+          <table id="tbl">
+            <thead>
+              <tr>
+                <th>BPMN ID</th>
+                <th>Namn</th>
+                <th>Typ</th>
+                <th>Prio</th>
+                <th>Taggar</th>
+                <th>Jira</th>
+                <th>PlaywrightRefs</th>
+                <th>Figma</th>
+                <th>Tester</th>
+                <th>Coverage</th>
+              </tr>
+            </thead>
+            <tbody>
+              
+    <tr data-row>
+      <td class="mono">Definitions_0dwjhq5</td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td class="mono"></td>
+      <td></td>
+      <td></td>
+      <td><span class="pill-miss">Missing</span>
+      </td>
+    </tr>
+  
+    <tr data-row>
+      <td class="mono">Process_0ob1fb8</td>
+      <td></td>
+      <td>process</td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td class="mono"></td>
+      <td></td>
+      <td></td>
+      <td><span class="pill-miss">Missing</span>
+      </td>
+    </tr>
+  
+    <tr data-row>
+      <td class="mono">StartEvent_1</td>
+      <td></td>
+      <td>startEvent</td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td class="mono"></td>
+      <td></td>
+      <td></td>
+      <td><span class="pill-miss">Missing</span>
+      </td>
+    </tr>
+  
+    <tr data-row>
+      <td class="mono">Activity_0t3sa8u</td>
+      <td>Steg 1&#10;Inloggning</td>
+      <td>task</td>
+      <td><span class="chip">H</span></td>
+      <td><span class="chip">auth</span> <span class="chip">bankid</span> <span class="chip">happy-path</span></td>
+      <td><div><a href="https://jira.example.com/browse/KRE-TC-1001" target="_blank" rel="noopener">KRE-TC-1001</a></div><div><a href="https://jira.example.com/browse/KRE-TC-1002" target="_blank" rel="noopener">KRE-TC-1002</a></div></td>
+      <td class="mono">tests/login_bankid.spec.ts#BankID happy path</td>
+      <td><a href="https://www.figma.com/design/iSRYo9n5XbWcTuqPjAxMMZ/ci_test?node-id=2-11" target="_blank" rel="noopener">Öppna</a></td>
+      <td></td>
+      <td><span class="pill-miss">Missing</span>
+      </td>
+    </tr>
+  
+    <tr data-row>
+      <td class="mono">Activity_11wac6l</td>
+      <td>Steg 2&#10;Kundens inkomst</td>
+      <td>task</td>
+      <td><span class="chip">H</span></td>
+      <td><span class="chip">income</span> <span class="chip">validation</span></td>
+      <td><div><a href="https://jira.example.com/browse/KRE-TC-1101" target="_blank" rel="noopener">KRE-TC-1101</a></div><div><a href="https://jira.example.com/browse/KRE-TC-1102" target="_blank" rel="noopener">KRE-TC-1102</a></div></td>
+      <td class="mono">tests/income.spec.ts#Valid income (mock) | tests/income.spec.ts#Missing income -> error (mock)</td>
+      <td><a href="https://www.figma.com/design/iSRYo9n5XbWcTuqPjAxMMZ/ci_test?node-id=2-4" target="_blank" rel="noopener">Öppna</a></td>
+      <td><div>tests/smoke.spec.ts#smoke [bpmn:Activity_11wac6l]</div></td>
+      <td><span class="pill-ok">Covered</span>
+      </td>
+    </tr>
+  
+    <tr data-row>
+      <td class="mono">Activity_0ltfew7</td>
+      <td>Steg 3&#10;Kundens lån</td>
+      <td>task</td>
+      <td><span class="chip">M</span></td>
+      <td><span class="chip">loans</span> <span class="chip">debts</span> <span class="chip">fetch-external</span></td>
+      <td><div><a href="https://jira.example.com/browse/KRE-TC-1201" target="_blank" rel="noopener">KRE-TC-1201</a></div></td>
+      <td class="mono">tests/uc_loans.spec.ts#Existing loans fetched</td>
+      <td><a href="https://www.figma.com/design/iSRYo9n5XbWcTuqPjAxMMZ/ci_test?node-id=2-12" target="_blank" rel="noopener">Öppna</a></td>
+      <td></td>
+      <td><span class="pill-miss">Missing</span>
+      </td>
+    </tr>
+  
+    <tr data-row>
+      <td class="mono">Flow_0i7wud8</td>
+      <td></td>
+      <td>sequenceFlow</td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td class="mono"></td>
+      <td></td>
+      <td></td>
+      <td><span class="pill-miss">Missing</span>
+      </td>
+    </tr>
+  
+    <tr data-row>
+      <td class="mono">Flow_1tap1t8</td>
+      <td></td>
+      <td>sequenceFlow</td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td class="mono"></td>
+      <td></td>
+      <td></td>
+      <td><span class="pill-miss">Missing</span>
+      </td>
+    </tr>
+  
+    <tr data-row>
+      <td class="mono">Flow_0ja9580</td>
+      <td></td>
+      <td>sequenceFlow</td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td class="mono"></td>
+      <td></td>
+      <td></td>
+      <td><span class="pill-miss">Missing</span>
+      </td>
+    </tr>
+  
+    <tr data-row>
+      <td class="mono">Flow_0y81fp3</td>
+      <td></td>
+      <td>sequenceFlow</td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td class="mono"></td>
+      <td></td>
+      <td></td>
+      <td><span class="pill-miss">Missing</span>
+      </td>
+    </tr>
+  
+    <tr data-row>
+      <td class="mono">Event_0udb4lm</td>
+      <td></td>
+      <td>endEvent</td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td class="mono"></td>
+      <td></td>
+      <td></td>
+      <td><span class="pill-miss">Missing</span>
+      </td>
+    </tr>
+  
+    <tr data-row>
+      <td class="mono">BPMNDiagram_1</td>
+      <td></td>
+      <td>bpmndi:BPMNDiagram</td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td class="mono"></td>
+      <td></td>
+      <td></td>
+      <td><span class="pill-miss">Missing</span>
+      </td>
+    </tr>
+  
+    <tr data-row>
+      <td class="mono">BPMNPlane_1</td>
+      <td></td>
+      <td>bpmndi:BPMNPlane</td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td class="mono"></td>
+      <td></td>
+      <td></td>
+      <td><span class="pill-miss">Missing</span>
+      </td>
+    </tr>
+  
+    <tr data-row>
+      <td class="mono">_BPMNShape_StartEvent_2</td>
+      <td></td>
+      <td>bpmndi:BPMNShape</td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td class="mono"></td>
+      <td></td>
+      <td></td>
+      <td><span class="pill-miss">Missing</span>
+      </td>
+    </tr>
+  
+    <tr data-row>
+      <td class="mono">Activity_0t3sa8u_di</td>
+      <td></td>
+      <td>bpmndi:BPMNShape</td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td class="mono"></td>
+      <td></td>
+      <td></td>
+      <td><span class="pill-miss">Missing</span>
+      </td>
+    </tr>
+  
+    <tr data-row>
+      <td class="mono">Activity_11wac6l_di</td>
+      <td></td>
+      <td>bpmndi:BPMNShape</td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td class="mono"></td>
+      <td></td>
+      <td></td>
+      <td><span class="pill-miss">Missing</span>
+      </td>
+    </tr>
+  
+    <tr data-row>
+      <td class="mono">Activity_0ltfew7_di</td>
+      <td></td>
+      <td>bpmndi:BPMNShape</td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td class="mono"></td>
+      <td></td>
+      <td></td>
+      <td><span class="pill-miss">Missing</span>
+      </td>
+    </tr>
+  
+    <tr data-row>
+      <td class="mono">Event_0udb4lm_di</td>
+      <td></td>
+      <td>bpmndi:BPMNShape</td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td class="mono"></td>
+      <td></td>
+      <td></td>
+      <td><span class="pill-miss">Missing</span>
+      </td>
+    </tr>
+  
+    <tr data-row>
+      <td class="mono">Flow_0i7wud8_di</td>
+      <td></td>
+      <td>bpmndi:BPMNEdge</td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td class="mono"></td>
+      <td></td>
+      <td></td>
+      <td><span class="pill-miss">Missing</span>
+      </td>
+    </tr>
+  
+    <tr data-row>
+      <td class="mono">Flow_1tap1t8_di</td>
+      <td></td>
+      <td>bpmndi:BPMNEdge</td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td class="mono"></td>
+      <td></td>
+      <td></td>
+      <td><span class="pill-miss">Missing</span>
+      </td>
+    </tr>
+  
+    <tr data-row>
+      <td class="mono">Flow_0ja9580_di</td>
+      <td></td>
+      <td>bpmndi:BPMNEdge</td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td class="mono"></td>
+      <td></td>
+      <td></td>
+      <td><span class="pill-miss">Missing</span>
+      </td>
+    </tr>
+  
+    <tr data-row>
+      <td class="mono">Flow_0y81fp3_di</td>
+      <td></td>
+      <td>bpmndi:BPMNEdge</td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td class="mono"></td>
+      <td></td>
+      <td></td>
+      <td><span class="pill-miss">Missing</span>
+      </td>
+    </tr>
+  
+            </tbody>
+          </table>
+        </div>
+      </div>
+      
+    </div>
+
+    <script>
+      const q = document.getElementById('q');
+      const rows = Array.from(document.querySelectorAll('tbody tr[data-row]'));
+      const btnMissing = document.getElementById('show-missing');
+      const btnReset = document.getElementById('reset');
+
+      function textOfRow(tr){ return tr.innerText.toLowerCase(); }
+      function isMissing(tr){ return tr.querySelector('.pill-miss') !== null; }
+
+      function applyFilter(){
+        const v = (q.value || '').toLowerCase();
+        rows.forEach(tr=>{
+          const hit = textOfRow(tr).includes(v);
+          tr.style.display = hit ? '' : 'none';
+        });
+      }
+      q.addEventListener('input', applyFilter);
+
+      let onlyMissing = false;
+      btnMissing.addEventListener('click', ()=>{
+        onlyMissing = !onlyMissing;
+        btnMissing.style.fontWeight = onlyMissing ? '600' : '400';
+        rows.forEach(tr=>{
+          const show = !onlyMissing || isMissing(tr);
+          tr.style.display = show ? '' : 'none';
+        });
+      });
+
+      btnReset.addEventListener('click', ()=>{
+        q.value=''; onlyMissing=false; btnMissing.style.fontWeight='400';
+        rows.forEach(tr=> tr.style.display='');
+      });
+    </script>
+  </body>
+  </html>

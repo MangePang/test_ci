@@ -2,65 +2,149 @@
 <html lang="sv">
 <head>
   <meta charset="utf-8" />
-  <title>BPMN Viewer</title>
+  <title>CI Test – BPMN Viewer</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- Material look: Roboto + Material Symbols -->
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:FILL@0..1" rel="stylesheet">
 
   <!-- bpmn-js standardstilar -->
   <link rel="stylesheet" href="https://unpkg.com/bpmn-js/dist/assets/diagram-js.css">
   <link rel="stylesheet" href="https://unpkg.com/bpmn-js/dist/assets/bpmn-font/css/bpmn.css">
+
   <style>
-    html, body { height: 100%; margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
-    #app { display: grid; grid-template-columns: 1fr 320px; height: 100%; }
-    #canvas { background: #fafafa; }
-    #side {
-      border-left: 1px solid #e5e7eb; padding: 12px; overflow: auto;
-      display: flex; flex-direction: column; gap: 12px;
+    :root{
+      --md-surface:#ffffff;
+      --md-on-surface:#1f2937;
+      --md-surface-variant:#f3f4f6;
+      --md-outline:#e5e7eb;
+      --md-primary:#1a73e8;
+      --md-danger:#ef4444;
     }
-    .el { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-    .k { color: #374151; font-weight: 600; }
-    .v { color: #111827; }
-    .highlight > .djs-outline { stroke: #ef4444 !important; stroke-width: 2px !important; }
-    .highlight > .djs-visual > :nth-child(1) { stroke: #ef4444 !important; }
-    .toolbar { display:flex; gap:8px; flex-wrap: wrap; }
-    button { padding:6px 10px; border:1px solid #d1d5db; background:#fff; border-radius:8px; cursor:pointer; }
-    input[type="text"] { width: 100%; padding:6px 10px; border:1px solid #d1d5db; border-radius:8px; }
-    small { color:#6b7280; }
-    a { color:#2563eb; text-decoration: none; }
+    *{box-sizing:border-box}
+    html, body { height: 100%; margin: 0; font-family: Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif; color: var(--md-on-surface); background:#fafafa; }
+
+    /* Top App Bar */
+    .appbar{
+      position: sticky; top: 0; z-index: 10;
+      background: var(--md-surface);
+      border-bottom: 1px solid var(--md-outline);
+      padding: 10px 16px;
+      display: flex; align-items: center; gap: 12px;
+    }
+    .appbar .title { font-size: 18px; font-weight: 600; margin: 0; display:flex; align-items:center; gap:8px; }
+    .toolbar { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+
+    /* Layout */
+    #app { display: grid; grid-template-columns: 1fr 360px; height: calc(100vh - 56px); }
+    #canvas { background: #fafafa; }
+
+    /* Gör själva viewer-ytan lite mer "kort"-känsla */
+    .djs-container{
+      background:
+        linear-gradient(0deg, #fff, #fff) padding-box,
+        repeating-linear-gradient(0deg, #f9fafb, #f9fafb 20px, #ffffff 20px, #ffffff 40px) border-box;
+      border-left: 1px solid var(--md-outline);
+    }
+
+    /* Side panel (card) */
+    #side {
+      background: var(--md-surface);
+      border-left: 1px solid var(--md-outline);
+      display: flex; flex-direction: column; height: 100%;
+    }
+    .card-header{ padding: 14px 16px; border-bottom:1px solid var(--md-outline); display:flex; align-items:center; gap:8px; }
+    .card-content{ padding: 12px 16px; overflow: auto; display: flex; flex-direction: column; gap: 12px; }
+
+    /* Inputs & buttons */
+    .field { display: grid; gap: 6px; }
+    .label { font-size: 12px; color:#374151; font-weight: 600; }
+    .row { display:flex; gap:8px; flex-wrap: wrap; }
+    input[type="text"]{
+      width: 100%; padding: 10px 12px; border:1px solid var(--md-outline); border-radius: 12px; outline: none; background:#fff;
+      font-size: 14px;
+    }
+    .btn{
+      border:1px solid var(--md-outline); background:#fff; border-radius:12px; padding:8px 12px; cursor:pointer; font-size:14px;
+      display:inline-flex; align-items:center; gap:6px;
+    }
+    .btn:hover{ background:#f3f4f6; }
+    .btn-primary{ border-color: transparent; background: var(--md-primary); color:#fff; }
+    .btn-primary:hover{ filter: brightness(0.96); }
+
+    /* Info list */
+    .kv { display:grid; grid-template-columns: 110px 1fr; gap:6px 10px; align-items: baseline; }
+    .k { color:#374151; font-weight:600; font-size: 13px; }
+    .v { font-size: 14px; }
+    .mono { font-family: ui-monospace, Menlo, Consolas, monospace; }
+
+    /* Tags / chips */
+    .chip { display:inline-flex; gap:6px; padding:4px 8px; border-radius: 999px; font-size:12px; background: var(--md-surface-variant); }
+
+    /* Links */
+    a { color: var(--md-primary); text-decoration: none; }
     a:hover { text-decoration: underline; }
+
+    /* BPMN highlight */
+    .highlight > .djs-outline { stroke: var(--md-danger) !important; stroke-width: 2px !important; }
+    .highlight > .djs-visual > :nth-child(1) { stroke: var(--md-danger) !important; }
   </style>
 </head>
 <body>
+  <!-- Top bar -->
+  <div class="appbar">
+    <h1 class="title">
+      <span class="material-symbols-rounded" style="font-size:20px;">schema</span>
+      CI Test — BPMN Viewer
+    </h1>
+    <div class="toolbar">
+      <a class="btn" href="reports/coverage/" target="_blank" rel="noopener">
+        <span class="material-symbols-rounded" style="font-size:18px;">table</span>
+        Visa testrapport
+      </a>
+      <button id="btn-zoom-in" class="btn" title="Zooma in">
+        <span class="material-symbols-rounded" style="font-size:18px;">zoom_in</span> Zoom +
+      </button>
+      <button id="btn-zoom-out" class="btn" title="Zooma ut">
+        <span class="material-symbols-rounded" style="font-size:18px;">zoom_out</span> Zoom −
+      </button>
+      <button id="btn-reset" class="btn" title="Fit to viewport">
+        <span class="material-symbols-rounded" style="font-size:18px;">center_focus_strong</span> Fit
+      </button>
+    </div>
+  </div>
+
   <div id="app">
     <div id="canvas"></div>
+
     <aside id="side">
-      <div>
-        <h3 style="margin:0 0 6px 0;">BPMN Viewer</h3>
-        <small>Tips: lägg till <code>?el=&lt;elementId&gt;</code> i URL:en för att hoppa till och markera ett element.</small>
+      <div class="card-header">
+        <span class="material-symbols-rounded" style="font-size:20px;">info</span>
+        <div style="font-weight:600;">Detaljer</div>
       </div>
-
-      <div class="toolbar">
-        <button id="btn-zoom-in">Zoom +</button>
-        <button id="btn-zoom-out">Zoom −</button>
-        <button id="btn-reset">Fit</button>
-      </div>
-
-      <div>
-        <label for="elInput" class="k">Gå till element-ID</label>
-        <input id="elInput" type="text" placeholder="t.ex. Activity_11wac6l" />
-        <div class="toolbar">
-          <button id="btn-go">Markera</button>
-          <button id="btn-clear">Rensa markering</button>
+      <div class="card-content">
+        <div class="field">
+          <div class="label">Gå till element-ID</div>
+          <div class="row">
+            <input id="elInput" type="text" placeholder="t.ex. Activity_11wac6l" />
+            <button id="btn-go" class="btn-primary"><span class="material-symbols-rounded" style="font-size:18px;">arrow_forward</span> Markera</button>
+            <button id="btn-clear" class="btn"><span class="material-symbols-rounded" style="font-size:18px;">close</span> Rensa</button>
+          </div>
+          <div style="color:#6b7280; font-size:12px;">Tips: använd också <code>?el=&lt;elementId&gt;</code> i URL:en.</div>
         </div>
-      </div>
 
-      <div id="info">
-        <div><span class="k">Valt element:</span> <span class="v el" id="selId">–</span></div>
-        <div><span class="k">Typ:</span> <span class="v" id="selType">–</span></div>
-        <div><span class="k">Namn:</span> <span class="v" id="selName">–</span></div>
-        <hr/>
-        <div><span class="k">Snabblänkar:</span></div>
-        <div id="links">
-          <small>Välj ett element för att generera länkar (Jira, Playwright, Figma) baserat på ID.</small>
+        <div class="kv">
+          <div class="k">Valt element:</div> <div class="v mono" id="selId">–</div>
+          <div class="k">Typ:</div>           <div class="v" id="selType">–</div>
+          <div class="k">Namn:</div>          <div class="v" id="selName">–</div>
+        </div>
+
+        <hr style="border:none; border-top:1px solid var(--md-outline);">
+
+        <div>
+          <div class="label" style="margin-bottom:6px;">Snabblänkar</div>
+          <div id="links"><small>Välj ett element för att generera länkar (Jira, Playwright, Figma) baserat på BPMN-ID och meta.</small></div>
         </div>
       </div>
     </aside>
@@ -70,7 +154,7 @@
   <script src="https://unpkg.com/bpmn-js/dist/bpmn-navigated-viewer.development.js"></script>
   <script>
     // === Konfiguration ===
-    const RAW_BPMN_PATH = 'ci_test.bpmn'; // byt om du använder annan sökväg
+    const RAW_BPMN_PATH = 'ci_test.bpmn';
     const BPMN_PATH = new URL(RAW_BPMN_PATH, window.location.href).toString() + `?v=${Date.now()}`;
 
     // Repo-konfig för länkar
@@ -84,13 +168,12 @@
     const PLAYWRIGHT_FILE_BASE   = `https://github.com/${GH_OWNER}/${GH_REPO}/blob/${GH_BRANCH}/`;
 
     // Figma (om full URL saknas i BPMN)
-    const FIGMA_FILE_KEY = 'ABCDE'; // valfritt – lämna '' om ni alltid har full figmaUrl
+    const FIGMA_FILE_KEY = ''; // sätt t.ex. 'iSRYo9n5XbWcTuqPjAxMMZ' om du vill bygga via node-id
 
     const viewer = new BpmnJS({ container: '#canvas', height: '100%' });
 
     // ===== Helpers för parsing & rendering =====
     const metaById = new Map();
-
     const ln = (tagName) => (tagName || '').split(':').pop();
     const text = (el) => (el && (el.textContent || '').trim()) || '';
     const toList = (val) => (val || '').split(/[,|]/).map(s => s.trim()).filter(Boolean);
@@ -119,16 +202,15 @@
           Array.from(child.children || []).forEach(kv => {
             const name = ln(kv.tagName);
             const val = text(kv);
-
             switch (name) {
-              case 'playwrightRef':    meta.playwrightRefs.push(val); break;
-              case 'jiraKeys':         meta.jiraKeys.push(...toList(val)); break;
-              case 'tags':             meta.tags.push(...toList(val)); break;
-              case 'priority':         meta.priority = val; break;
-              case 'figmaUrl':         meta.figmaUrl = val; break;
-              case 'figmaNodeId':      meta.figmaNodeId = val; break;
-              case 'figmaComponentKey':meta.figmaComponentKey = val; break;
-              case 'variant':          meta.variant = val; break;
+              case 'playwrightRef':   meta.playwrightRefs.push(val); break;
+              case 'jiraKeys':        meta.jiraKeys.push(...toList(val)); break;
+              case 'tags':            meta.tags.push(...toList(val)); break;
+              case 'priority':        meta.priority = val; break;
+              case 'figmaUrl':        meta.figmaUrl = val; break;
+              case 'figmaNodeId':     meta.figmaNodeId = val; break;
+              case 'figmaComponentKey': meta.figmaComponentKey = val; break;
+              case 'variant':         meta.variant = val; break;
               default: /* ignore */ ;
             }
           });
@@ -146,8 +228,8 @@
       return '';
     }
 
+    // ===== UI helpers =====
     const getParam = (name) => new URLSearchParams(window.location.search).get(name);
-
     function addMarker(elementId) {
       try {
         const canvas = viewer.get('canvas');
@@ -156,7 +238,6 @@
         canvas.scrollToElement(elementId);
       } catch {}
     }
-
     function clearMarkers() {
       const canvas = viewer.get('canvas');
       const elementRegistry = viewer.get('elementRegistry');
@@ -182,70 +263,63 @@
       const elId = el.id;
       const meta = metaById.get(elId) || {};
 
-      // --- Playwright ---
+      // — Playwright: direkta refs + repo-sök på [bpmn:ID]
       if (meta.playwrightRefs && meta.playwrightRefs.length) {
         const h = document.createElement('div');
-        h.innerHTML = '<div class="k" style="margin-top:6px;">Playwright</div>';
+        h.innerHTML = '<div class="label">Playwright</div>';
         links.appendChild(h);
 
         meta.playwrightRefs.forEach(ref => {
-          // Förväntat format: "tests/uc_income.spec.ts#Valid income entry"
-          const [path, title] = ref.split('#');
-          const safePath = (path || '').replace(/^\/+/, ''); // ta bort ev. ledande "/"
+          const [path, title] = String(ref).split('#');
+          const safePath = (path || '').replace(/^\/+/, '');
           const fileUrl = PLAYWRIGHT_FILE_BASE + encodeURI(safePath);
-
           const aFile = document.createElement('a');
           aFile.href = fileUrl;
-          aFile.target = '_blank';
+          aFile.target = '_blank'; aFile.rel = 'noopener';
           aFile.textContent = `📄 ${safePath}${title ? ` — ${title}` : ''}`;
           links.appendChild(aFile);
           links.appendChild(document.createElement('br'));
         });
-
-        // Repo-sök på "[bpmn:ID]" begränsat till tests/ och code
-        const q = `path:tests "[bpmn:${elId}]"`;
-        const codeSearch = document.createElement('a');
-        codeSearch.href = `${PLAYWRIGHT_CODE_SEARCH}${encodeURIComponent(q)}&type=code`;
-        codeSearch.target = '_blank';
-        codeSearch.textContent = '🔎 Sök [bpmn:ID] i testkoden';
-        links.appendChild(codeSearch);
-        links.appendChild(document.createElement('br'));
       }
+      const q = `path:tests "[bpmn:${elId}]"`;
+      const codeSearch = document.createElement('a');
+      codeSearch.href = `${PLAYWRIGHT_CODE_SEARCH}${encodeURIComponent(q)}&type=code`;
+      codeSearch.target = '_blank'; codeSearch.rel = 'noopener';
+      codeSearch.textContent = '🔎 Sök [bpmn:ID] i testkoden';
+      links.appendChild(codeSearch);
+      links.appendChild(document.createElement('br'));
 
-      // --- Jira ---
+      // — Jira: direkta nycklar + fallback sök
       if (meta.jiraKeys && meta.jiraKeys.length) {
         const h = document.createElement('div');
-        h.innerHTML = '<div class="k" style="margin-top:6px;">Jira</div>';
+        h.innerHTML = '<div class="label" style="margin-top:6px;">Jira</div>';
         links.appendChild(h);
-
         meta.jiraKeys.forEach(key => {
           const a = document.createElement('a');
           a.href = `https://jira.example.com/browse/${encodeURIComponent(key)}`;
-          a.target = '_blank';
+          a.target = '_blank'; a.rel = 'noopener';
           a.textContent = `🔗 ${key}`;
           links.appendChild(a);
           links.appendChild(document.createElement('br'));
         });
       }
-
-      // Jira fallback: sök på ID
       const jiraSearch = document.createElement('a');
       jiraSearch.href = JIRA_BASE_QUERY + encodeURIComponent(`text ~ "${elId}" OR "BPMN Element ID" ~ "${elId}"`);
-      jiraSearch.target = '_blank';
+      jiraSearch.target = '_blank'; jiraSearch.rel = 'noopener';
       jiraSearch.textContent = '🔎 Sök ärenden kopplade till ID';
       links.appendChild(jiraSearch);
       links.appendChild(document.createElement('br'));
 
-      // --- Figma ---
+      // — Figma
       const figmaResolved = buildFigmaUrl(meta);
       if (figmaResolved) {
         const h = document.createElement('div');
-        h.innerHTML = '<div class="k" style="margin-top:6px;">Figma</div>';
+        h.innerHTML = '<div class="label" style="margin-top:6px;">Figma</div>';
         links.appendChild(h);
 
         const a = document.createElement('a');
         a.href = figmaResolved;
-        a.target = '_blank';
+        a.target = '_blank'; a.rel = 'noopener';
         a.textContent = '🎨 Öppna relaterad Figma-skärm';
         links.appendChild(a);
         links.appendChild(document.createElement('br'));
@@ -257,26 +331,26 @@
         }
       }
 
-      // --- Badges (taggar/prio) ---
+      // — Chips (taggar/prio)
       const chips = [];
-      if (meta.priority) chips.push(`Prio: ${meta.priority}`);
-      if (meta.tags && meta.tags.length) chips.push(`Taggar: ${meta.tags.join(', ')}`);
+      if (meta.priority) chips.push(`<span class="chip">Prio: ${meta.priority}</span>`);
+      if (meta.tags && meta.tags.length) chips.push(`<span class="chip">Taggar: ${meta.tags.join(', ')}</span>`);
       if (chips.length) {
         const c = document.createElement('div');
-        c.innerHTML = `<small>${chips.join(' • ')}</small>`;
         c.style.marginTop = '6px';
+        c.innerHTML = chips.join(' ');
         links.appendChild(c);
       }
     }
 
-    // ===== Ladda BPMN, bygg meta, init viewer =====
+    // ===== Ladda BPMN & koppla UI =====
     fetch(BPMN_PATH, { cache: 'no-store' })
       .then(async (r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status} for ${r.url}`);
         const xml = await r.text();
 
-        buildMetaIndex(xml);           // indexera extensionElements
-        await viewer.importXML(xml);   // ladda in modellen
+        buildMetaIndex(xml);
+        await viewer.importXML(xml);
 
         const canvas = viewer.get('canvas');
         const eventBus = viewer.get('eventBus');
@@ -284,7 +358,7 @@
 
         canvas.zoom('fit-viewport', 'auto');
 
-        // URL-param: ?el=<elementId>
+        // URL-param: ?el=<id>
         const elParam = getParam('el');
         if (elParam) {
           const exists = elementRegistry.get(elParam);
@@ -304,12 +378,12 @@
           history.replaceState(null, '', `?el=${encodeURIComponent(element.id)}`);
         });
 
-        // Knappar
-        const canvasApi = viewer.get('canvas');
-        document.getElementById('btn-zoom-in').onclick  = () => canvasApi.zoom(canvasApi.zoom() + 0.2);
-        document.getElementById('btn-zoom-out').onclick = () => canvasApi.zoom(canvasApi.zoom() - 0.2);
-        document.getElementById('btn-reset').onclick    = () => canvasApi.zoom('fit-viewport', 'auto');
+        // Topbar-knappar
+        document.getElementById('btn-zoom-in').onclick  = () => canvas.zoom(canvas.zoom() + 0.2);
+        document.getElementById('btn-zoom-out').onclick = () => canvas.zoom(canvas.zoom() - 0.2);
+        document.getElementById('btn-reset').onclick    = () => canvas.zoom('fit-viewport', 'auto');
 
+        // Gå till / Rensa
         document.getElementById('btn-go').onclick = () => {
           const id = document.getElementById('elInput').value.trim();
           if (!id) return;
@@ -327,6 +401,7 @@
           clearMarkers();
           setSelected(null);
           history.replaceState(null, '', location.pathname);
+          document.getElementById('elInput').value = '';
         };
       })
       .catch(err => {

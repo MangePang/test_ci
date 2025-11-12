@@ -1,453 +1,325 @@
 #!/usr/bin/env node
-/**
- * Generate BPMN ↔︎ Test coverage report (HTML + CSV + JSON)
- *
- * - Parses BPMN XML (extensionElements: playwrightRef, jiraKeys, tags, priority, figmaUrl/nodeId)
- * - Scans test files for [bpmn:<ID>] in titles or body
- * - Writes:
- *    - bpmn-test-report.html      (root)
- *    - bpmn-test-report.csv       (root)
- *    - bpmn-test-report.json      (root)
- *    - reports/coverage/index.html
- *    - reports/coverage/bpmn-test-report.csv
- *    - reports/coverage/bpmn-test-report.json
- *
- * Run:  node scripts/generate-bpmn-test-report.mjs
+/* scripts/generate-bpmn-test-report.mjs
+ * BPMN test coverage report (Tasks-only) -> JSON, CSV, HTML
  */
 
-import fs from 'fs';
+import fs from 'fs/promises';
 import path from 'path';
-import { glob } from 'glob';
-import { XMLParser } from 'fast-xml-parser';
+import { fileURLToPath } from 'url';
 
-const ROOT = process.cwd();
-const BPMN_PATH = path.join(ROOT, 'ci_test.bpmn');                // justera om du byter namn
-const TEST_GLOB = 'tests/**/*.{spec,test}.{ts,tsx,js,jsx}';       // Playwright/Jest
-const OUT_ROOT_HTML = path.join(ROOT, 'bpmn-test-report.html');
-const OUT_ROOT_CSV  = path.join(ROOT, 'bpmn-test-report.csv');
-const OUT_ROOT_JSON = path.join(ROOT, 'bpmn-test-report.json');
-const OUT_DIR       = path.join(ROOT, 'reports', 'coverage');
-const OUT_HTML      = path.join(OUT_DIR, 'index.html');
-const OUT_CSV       = path.join(OUT_DIR, 'bpmn-test-report.csv');
-const OUT_JSON      = path.join(OUT_DIR, 'bpmn-test-report.json');
+// ---------- Config ----------
+const REPO_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+const BPMN_PATH = path.join(REPO_ROOT, 'ci_test.bpmn');
+const TESTS_DIR = path.join(REPO_ROOT, 'tests');
+const OUT_DIR   = path.join(REPO_ROOT, 'reports', 'coverage');
 
-const parser = new XMLParser({
-  ignoreAttributes: false,
-  attributeNamePrefix: '@',
-  removeNSPrefix: false
-});
+const OUT_JSON = path.join(OUT_DIR, 'bpmn-test-report.json');
+const OUT_CSV  = path.join(OUT_DIR, 'bpmn-test-report.csv');
+const OUT_HTML = path.join(OUT_DIR, 'index.html');
 
-/* ---------------------------- IO helpers ---------------------------- */
-
-function ensureDir(p) {
-  fs.mkdirSync(p, { recursive: true });
+// ---------- Helpers ----------
+async function ensureDir(p) {
+  await fs.mkdir(p, { recursive: true });
 }
 
-function readText(p) {
-  return fs.readFileSync(p, 'utf8');
+async function readTextIfExists(p) {
+  try { return await fs.readFile(p, 'utf8'); } catch { return ''; }
 }
 
-function writeText(p, content) {
-  ensureDir(path.dirname(p));
-  fs.writeFileSync(p, content, 'utf8');
-}
-
-/* ---------------------------- BPMN parsing ---------------------------- */
-
-function loadBpmn(xmlPath) {
-  const xml = readText(xmlPath);
-  return parser.parse(xml);
-}
-
-// Recursiv traversal som hittar alla BPMN-element med id och plockar ut extensionElements
-function collectBpmnElements(obj, tagName = '') {
+async function listFilesRec(dir) {
   const out = [];
-  const isObject = v => v && typeof v === 'object' && !Array.isArray(v);
-
-  function visit(node, name) {
-    if (!node) return;
-
-    if (Array.isArray(node)) {
-      node.forEach(n => visit(n, name));
-      return;
+  async function walk(d) {
+    const entries = await fs.readdir(d, { withFileTypes: true });
+    for (const e of entries) {
+      const abs = path.join(d, e.name);
+      if (e.isDirectory()) await walk(abs);
+      else out.push(abs);
     }
-    if (!isObject(node)) return;
-
-    if (node['@id']) {
-      const el = {
-        id: node['@id'],
-        type: name,
-        name: node['@name'] || '',
-        meta: {
-          playwrightRefs: [],
-          jiraKeys: [],
-          tags: [],
-          priority: '',
-          figmaUrl: '',
-          figmaNodeId: '',
-          figmaComponentKey: '',
-          variant: ''
-        }
-      };
-
-      const ext = node['bpmn:extensionElements'] || node['extensionElements'];
-      if (ext) {
-        Object.entries(ext).forEach(([k, v]) => {
-          const arr = Array.isArray(v) ? v : [v];
-          arr.filter(Boolean).forEach(ch => {
-            if (typeof ch !== 'object') return;
-            Object.entries(ch).forEach(([kk, vv]) => {
-              const vvArr = Array.isArray(vv) ? vv : [vv];
-              vvArr.filter(Boolean).forEach(x => {
-                const key = kk.split(':').pop(); // ta bort ev namespace
-
-                const str = s => {
-                  if (typeof s === 'string') return s.trim();
-                  if (s && typeof s === 'object') {
-                    // fast-xml-parser kan lägga text som value i childobjekt
-                    const val = Object.values(s).find(v => typeof v === 'string');
-                    return (val || '').trim();
-                  }
-                  return '';
-                };
-
-                switch (key) {
-                  case 'playwrightRef':
-                    el.meta.playwrightRefs.push(str(x));
-                    break;
-                  case 'jiraKeys':
-                    str(x).split(/[,|]/).map(s => s.trim()).filter(Boolean).forEach(k => el.meta.jiraKeys.push(k));
-                    break;
-                  case 'tags':
-                    str(x).split(/[,|]/).map(s => s.trim()).filter(Boolean).forEach(t => el.meta.tags.push(t));
-                    break;
-                  case 'priority':
-                    el.meta.priority = str(x);
-                    break;
-                  case 'figmaUrl':
-                    el.meta.figmaUrl = str(x);
-                    break;
-                  case 'figmaNodeId':
-                    el.meta.figmaNodeId = str(x);
-                    break;
-                  case 'figmaComponentKey':
-                    el.meta.figmaComponentKey = str(x);
-                    break;
-                  case 'variant':
-                    el.meta.variant = str(x);
-                    break;
-                  default:
-                    break;
-                }
-              });
-            });
-          });
-        });
-      }
-
-      out.push(el);
-    }
-
-    Object.entries(node).forEach(([k, v]) => {
-      if (k.startsWith('@')) return;
-      visit(v, k);
-    });
   }
-
-  visit(obj, tagName);
+  try { await walk(dir); } catch {}
   return out;
 }
 
-/* ---------------------------- Test scanning ---------------------------- */
+// Try use fast-xml-parser if available; else regex-fallback
+let parseXML;
+try {
+  const { XMLParser } = await import('fast-xml-parser');
+  const parser = new XMLParser({
+    ignoreAttributes: false,
+    attributeNamePrefix: '',
+    allowBooleanAttributes: true,
+    preserveOrder: true
+  });
+  parseXML = (xml) => parser.parse(xml);
+} catch {
+  parseXML = null;
+}
 
-function scanTestsForBpmnTags() {
-  const files = glob.sync(TEST_GLOB, { cwd: ROOT, dot: false, nodir: true });
-  const re = /\[bpmn:([^\]]+)\]/g;
+// Extract text from node (preserveOrder structure)
+function getAttr(node, name) {
+  if (!node || typeof node !== 'object') return undefined;
+  const k = Object.keys(node).find(k => k.startsWith(':@'));
+  if (!k) return undefined;
+  const attrs = node[k];
+  return attrs ? attrs[name] : undefined;
+}
+function nodeName(node) {
+  if (!node || typeof node !== 'object') return '';
+  return Object.keys(node).find(k => !k.startsWith(':@')) || '';
+}
+function childNodes(node) {
+  if (!node || typeof node !== 'object') return [];
+  const name = nodeName(node);
+  const children = node[name];
+  return Array.isArray(children) ? children : [];
+}
 
-  const hitsById = new Map(); // id -> array of { file, line, titleSnippet }
-  const titlesByFile = new Map();
+// Parse BPMN: prefer fast-xml-parser; otherwise do a regex scan for Task-like tags
+function extractTasks(xml) {
+  const tasks = [];
 
-  for (const file of files) {
-    const full = path.join(ROOT, file);
-    if (!fs.existsSync(full)) continue;
+  if (parseXML) {
+    const doc = parseXML(xml); // preserveOrder = true -> array
+    // Walk the tree to find any element where localName endsWith 'Task'
+    function walk(nodes) {
+      for (const n of nodes) {
+        const tag = nodeName(n);
+        if (!tag) continue;
 
-    const text = readText(full);
+        const local = tag.split(':').pop().toLowerCase();
+        const id = getAttr(n, 'id');
+        const name = getAttr(n, 'name') || '';
 
-    // samla titlar (heuristik)
-    const titleRe = /(test|it|describe)\s*\(\s*(['"`])(.*?)\2/gi;
-    const titles = [];
-    let m;
-    while ((m = titleRe.exec(text)) !== null) {
-      titles.push(m[3]);
+        if (id && local.endsWith('task')) {
+          tasks.push({ id, name, tag });
+        }
+
+        const kids = childNodes(n);
+        if (kids && kids.length) walk(kids);
+      }
     }
-    titlesByFile.set(file, titles);
-
-    // bpmn-taggar
-    let mt;
-    while ((mt = re.exec(text)) !== null) {
-      const id = mt[1];
-      const before = text.lastIndexOf('\n', mt.index);
-      const line = before === -1 ? 1 : (text.substring(0, before).match(/\n/g)?.length || 0) + 1;
-      const snippet = titles.find(t => t.includes(mt[0])) || '';
-      const arr = hitsById.get(id) || [];
-      arr.push({ file, line, title: snippet || '' });
-      hitsById.set(id, arr);
+    walk(doc);
+  } else {
+    // Fallback: naive regex (won't read nested meta)
+    const taskTagRegex = /<([a-zA-Z0-9:-]*task)\b([^>]*)>/g; // matches ...task tags
+    let m;
+    while ((m = taskTagRegex.exec(xml))) {
+      const tag = m[1]; // e.g. bpmn:userTask
+      const attrs = m[2] || '';
+      const id = (attrs.match(/\bid="([^"]+)"/) || [])[1];
+      const name = (attrs.match(/\bname="([^"]+)"/) || [])[1] || '';
+      if (id) tasks.push({ id, name, tag });
     }
   }
 
-  return { hitsById, titlesByFile };
+  return tasks;
 }
 
-/* ---------------------------- Report building ---------------------------- */
+// Extract <test:playwrightRef> under extensionElements for given element IDs (simple string scan)
+function extractPlaywrightRefsById(xml) {
+  // This is a lightweight approach: for each element with an id, scan its extensionElements block.
+  const refs = new Map();
+  const elementRegex = /<([a-zA-Z0-9:]+)\b[^>]*\bid="([^"]+)"[^>]*>([\s\S]*?)<\/\1>/g;
+  let em;
+  while ((em = elementRegex.exec(xml))) {
+    const [ , tag, id, inner ] = em;
+    if (!id) continue;
 
-function buildReport(bpmnEls, hitsById) {
-  const allIds = new Set(bpmnEls.map(e => e.id));
-  const rows = bpmnEls.map(el => {
-    const tests = hitsById.get(el.id) || [];
-    const coverage = tests.length > 0 ? 'Covered' : 'Missing';
-    return {
-      id: el.id,
-      name: el.name || '',
-      type: String(el.type || '').replace(/^bpmn:/, ''),
-      priority: el.meta.priority || '',
-      tags: el.meta.tags.join(', '),
-      jira: el.meta.jiraKeys.join(', '),
-      playwrightRefs: el.meta.playwrightRefs.join(' | '),
-      figma: el.meta.figmaUrl || (el.meta.figmaNodeId ? `node:${el.meta.figmaNodeId}` : ''),
-      tests: tests.map(t => `${t.file}${t.title ? `#${t.title}` : ''}`).join(' | '),
-      coverage
-    };
-  });
+    const extMatch = inner.match(/<bpmn:extensionElements[^>]*>([\s\S]*?)<\/bpmn:extensionElements>/);
+    if (!extMatch) continue;
 
-  // tester som pekar på ID som inte finns i BPMN
-  const orphanIds = [...hitsById.keys()].filter(id => !allIds.has(id));
-  const orphans = orphanIds.flatMap(id => hitsById.get(id).map(h => ({ id, ...h })));
-
-  return { rows, orphans };
+    const ext = extMatch[1];
+    const refRegex = /<test:playwrightRef>([\s\S]*?)<\/test:playwrightRef>/g;
+    let rm, list = [];
+    while ((rm = refRegex.exec(ext))) {
+      const v = String(rm[1] || '').trim();
+      if (v) list.push(v);
+    }
+    if (list.length) refs.set(id, list);
+  }
+  return refs;
 }
 
-/* ---------------------------- Formats: CSV + HTML + JSON ---------------------------- */
+// Scan tests for [bpmn:ID] markers
+async function scanTestMarkers(ids) {
+  const files = (await listFilesRec(TESTS_DIR))
+    .filter(f => /\.(spec\.)?(ts|js|tsx|jsx)$/.test(f));
+  const markers = new Map(ids.map(id => [id, []]));
+  for (const f of files) {
+    const rel = path.relative(REPO_ROOT, f);
+    const txt = await readTextIfExists(f);
+    for (const id of ids) {
+      if (txt.includes(`[bpmn:${id}]`)) {
+        markers.get(id).push(rel);
+      }
+    }
+  }
+  return markers;
+}
 
+// Build CSV
 function toCSV(rows) {
-  const header = ['BPMN ID','Name','Type','Priority','Tags','Jira','PlaywrightRefs','Figma','Tests','Coverage'];
-  const esc = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
-  const lines = [header.map(esc).join(',')];
+  const head = ['bpmnId','name','type','hasTests','testFiles','playwrightRefs'];
+  const esc = (s) => `"${String(s ?? '').replace(/"/g, '""')}"`;
+  const lines = [head.join(',')];
   for (const r of rows) {
     lines.push([
-      r.id, r.name, r.type, r.priority, r.tags, r.jira, r.playwrightRefs, r.figma, r.tests, r.coverage
-    ].map(esc).join(','));
+      esc(r.id),
+      esc(r.name),
+      esc(r.type),
+      esc(r.hasTests ? 'yes' : 'no'),
+      esc(r.testFiles.join('\n')),
+      esc(r.playwrightRefs.join('\n'))
+    ].join(','));
   }
   return lines.join('\n');
 }
 
-// Material-inspirerad HTML (ingen extern JS-ram behövs)
-function toHTML(rows, orphans) {
-  const style = `
-  @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
-
-  :root{
-    --md-surface:#fff;
-    --md-on-surface:#1f2937;
-    --md-surface-variant:#f3f4f6;
-    --md-outline:#e5e7eb;
-    --md-primary:#1a73e8;
-  }
-  *{box-sizing:border-box}
-  html,body{margin:0;padding:0;font-family:Roboto,system-ui,-apple-system,Segoe UI,Arial,sans-serif;color:var(--md-on-surface);background:#fafafa}
-  .appbar{position:sticky;top:0;z-index:10;background:var(--md-surface);border-bottom:1px solid var(--md-outline);padding:12px 16px;display:flex;gap:12px;align-items:center}
-  .appbar h1{font-size:18px;margin:0;font-weight:600}
-  .badge{display:inline-flex;align-items:center;gap:6px;padding:2px 8px;border-radius:999px;font-size:12px;border:1px solid var(--md-outline);background:var(--md-surface-variant)}
-  .chip{display:inline-flex;gap:6px;padding:4px 8px;border-radius:999px;font-size:12px;background:var(--md-surface-variant)}
-  .container{max-width:1200px;margin:18px auto;padding:0 16px}
-  .card{background:var(--md-surface);border:1px solid var(--md-outline);border-radius:16px;box-shadow:0 1px 2px rgb(0 0 0 / 8%);overflow:hidden}
-  .card-header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--md-outline)}
-  .search{display:flex;align-items:center;gap:8px;border:1px solid var(--md-outline);border-radius:12px;padding:8px 10px;background:#fff;min-width:260px}
-  .search input{border:none;outline:none;font-size:14px;width:220px}
-  table{width:100%;border-collapse:separate;border-spacing:0}
-  thead th{position:sticky;top:0;background:var(--md-surface-variant);text-align:left;font-weight:600;font-size:12px;letter-spacing:.02em;color:#374151;padding:10px;border-bottom:1px solid var(--md-outline)}
-  tbody td{padding:10px;border-bottom:1px solid var(--md-outline);vertical-align:top;font-size:14px}
-  tbody tr:hover{background:#f9fafb}
-  .mono{font-family:ui-monospace,Menlo,Consolas,monospace}
-  .pill-ok{background:rgba(34,197,94,.12);color:#065f46;border:1px solid rgba(34,197,94,.25);display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px}
-  .pill-miss{background:rgba(239,68,68,.10);color:#7f1d1d;border:1px solid rgba(239,68,68,.25);display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px}
-  .toolbar{display:flex;gap:8px;flex-wrap:wrap}
-  .btn{border:1px solid var(--md-outline);background:#fff;border-radius:12px;padding:8px 12px;cursor:pointer;font-size:14px}
-  .btn:hover{background:#f3f4f6}
-  .section{margin-top:24px}
-  a{color:var(--md-primary);text-decoration:none}
-  a:hover{text-decoration:underline}
-  `;
-
-  const rowsHtml = rows.map(r => `
-    <tr data-row>
-      <td class="mono">${r.id}</td>
-      <td>${r.name || ''}</td>
-      <td>${r.type || ''}</td>
-      <td>${r.priority ? `<span class="chip">${r.priority}</span>` : ''}</td>
-      <td>${r.tags ? r.tags.split(',').map(t=>`<span class="chip">${t.trim()}</span>`).join(' ') : ''}</td>
-      <td>${r.jira ? r.jira.split(',').map(j=>`<div><a href="https://jira.example.com/browse/${j.trim()}" target="_blank" rel="noopener">${j.trim()}</a></div>`).join('') : ''}</td>
-      <td class="mono">${r.playwrightRefs || ''}</td>
-      <td>${r.figma ? `<a href="${r.figma}" target="_blank" rel="noopener">Öppna</a>` : ''}</td>
-      <td>${(r.tests || '').split(' | ').filter(Boolean).map(x=>`<div>${x}</div>`).join('')}</td>
-      <td>${r.coverage === 'Covered'
-        ? '<span class="pill-ok">Covered</span>'
-        : '<span class="pill-miss">Missing</span>'}
-      </td>
-    </tr>
-  `).join('');
-
-  const orphansHtml = orphans.length ? `
-    <div class="section card">
-      <div class="card-header">
-        <div style="display:flex;align-items:center;gap:8px">
-          <h2 style="margin:0;font-size:16px">Orphan tests</h2>
-        </div>
-      </div>
-      <div style="padding:12px 16px;overflow:auto">
-        <table>
-          <thead>
-            <tr><th>BPMN ID (saknas)</th><th>Fil</th><th>Rad</th><th>Titel</th></tr>
-          </thead>
-          <tbody>
-            ${orphans.map(o => `<tr>
-              <td class="mono">${o.id}</td>
-              <td class="mono">${o.file}</td>
-              <td>${o.line}</td>
-              <td>${o.title || ''}</td>
-            </tr>`).join('')}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  ` : '';
-
+// Build HTML (Material-ish)
+function toHTML(rows, { total, covered, uncovered }) {
+  const date = new Date().toISOString();
   return `<!doctype html>
-  <html lang="sv">
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>BPMN ↔ Test Coverage</title>
-  <style>${style}</style>
-  <body>
-    <div class="appbar">
-      <h1>BPMN ↔ Test Coverage</h1>
-      <span class="badge">Genererad: ${new Date().toISOString().replace('T',' ').replace('Z','')}</span>
-      <div class="toolbar" style="margin-left:auto">
-        <div class="search">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M21 21l-4.35-4.35m1.6-4.65a6.95 6.95 0 11-13.9 0 6.95 6.95 0 0113.9 0z" stroke="#6b7280" stroke-width="2" stroke-linecap="round"/></svg>
-          <input id="q" placeholder="Filtrera (ID, namn, taggar, Jira, status)…" />
-        </div>
-        <button class="btn" id="show-missing">Visa bara Missing</button>
-        <button class="btn" id="reset">Rensa filter</button>
-      </div>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>BPMN Test Coverage – Tasks</title>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:FILL@0..1" rel="stylesheet">
+<style>
+:root{
+  --md-surface:#ffffff;
+  --md-on-surface:#1f2937;
+  --md-surface-variant:#f3f4f6;
+  --md-outline:#e5e7eb;
+  --md-primary:#1a73e8;
+  --md-danger:#ef4444;
+  --md-ok:#10b981;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;font-family:Roboto,system-ui,Segoe UI,Arial,sans-serif;color:var(--md-on-surface);background:#fafafa}
+.appbar{position:sticky;top:0;z-index:10;background:#fff;border-bottom:1px solid var(--md-outline);padding:12px 16px;display:flex;align-items:center;gap:12px}
+.title{font-size:18px;font-weight:700;margin:0;display:flex;align-items:center;gap:8px}
+.container{max-width:1100px;margin:20px auto;padding:0 16px}
+.summary{display:flex;gap:12px;flex-wrap:wrap;margin:16px 0}
+.card{background:#fff;border:1px solid var(--md-outline);border-radius:14px;padding:12px 14px;min-width:180px}
+.card h3{margin:0 0 4px 0;font-size:13px;color:#374151}
+.card .val{font-size:20px;font-weight:700}
+.table{width:100%;border-collapse:separate;border-spacing:0;background:#fff;border:1px solid var(--md-outline);border-radius:14px;overflow:hidden}
+.table th,.table td{padding:10px 12px;border-bottom:1px solid var(--md-outline);vertical-align:top;font-size:14px}
+.table th{background:#f8fafc;text-align:left;font-weight:600}
+.badge{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:3px 8px;font-size:12px}
+.badge.ok{background:#ecfdf5;color:#065f46}
+.badge.nok{background:#fef2f2;color:#991b1b}
+.small{color:#6b7280;font-size:12px}
+.mono{font-family:ui-monospace,Menlo,Consolas,monospace}
+.actions{margin:12px 0;display:flex;gap:8px;flex-wrap:wrap}
+.btn{border:1px solid var(--md-outline);background:#fff;border-radius:12px;padding:8px 12px;cursor:pointer}
+.btn:hover{background:#f3f4f6}
+</style>
+</head>
+<body>
+  <div class="appbar">
+    <h1 class="title"><span class="material-symbols-rounded" style="font-size:20px;">table</span> BPMN Test Coverage – Tasks</h1>
+  </div>
+  <div class="container">
+    <div class="summary">
+      <div class="card"><h3>Totalt Tasks</h3><div class="val">${total}</div></div>
+      <div class="card"><h3>Täckta</h3><div class="val" style="color:var(--md-ok)">${covered}</div></div>
+      <div class="card"><h3>Inte täckta</h3><div class="val" style="color:var(--md-danger)">${uncovered}</div></div>
+      <div class="card"><h3>Senast genererad</h3><div class="val" style="font-size:14px;font-weight:500">${date}</div></div>
     </div>
 
-    <div class="container">
-      <div class="card">
-        <div class="card-header">
-          <div style="display:flex;align-items:center;gap:8px">
-            <h2 style="margin:0;font-size:16px">Översikt</h2>
-          </div>
-          <div style="color:#6b7280;font-size:13px">Rader: ${rows.length} • Orphans: ${orphans.length}</div>
-        </div>
-        <div style="overflow:auto;max-height:70vh">
-          <table id="tbl">
-            <thead>
-              <tr>
-                <th>BPMN ID</th>
-                <th>Namn</th>
-                <th>Typ</th>
-                <th>Prio</th>
-                <th>Taggar</th>
-                <th>Jira</th>
-                <th>PlaywrightRefs</th>
-                <th>Figma</th>
-                <th>Tester</th>
-                <th>Coverage</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${rowsHtml}
-            </tbody>
-          </table>
-        </div>
-      </div>
-      ${orphansHtml}
+    <div class="actions">
+      <a class="btn" href="./bpmn-test-report.json" target="_blank" rel="noopener">Öppna JSON</a>
+      <a class="btn" href="./bpmn-test-report.csv"  target="_blank" rel="noopener">Öppna CSV</a>
+      <a class="btn" href="../../" rel="noopener">← Till index</a>
     </div>
 
-    <script>
-      const q = document.getElementById('q');
-      const rows = Array.from(document.querySelectorAll('tbody tr[data-row]'));
-      const btnMissing = document.getElementById('show-missing');
-      const btnReset = document.getElementById('reset');
+    <table class="table">
+      <thead>
+        <tr>
+          <th style="width:22%">BPMN ID</th>
+          <th style="width:22%">Namn</th>
+          <th style="width:14%">Typ</th>
+          <th style="width:12%">Status</th>
+          <th>Testfiler</th>
+          <th>Playwright refs</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows.map(r => `
+          <tr>
+            <td class="mono">${r.id}</td>
+            <td>${r.name || '—'}</td>
+            <td class="mono">${r.type}</td>
+            <td>${r.hasTests
+              ? `<span class="badge ok">Täckning</span>`
+              : `<span class="badge nok">Saknar test</span>`
+            }</td>
+            <td>${r.testFiles.length ? r.testFiles.map(f => `<div class="mono small">${f}</div>`).join('') : '<span class="small">—</span>'}</td>
+            <td>${r.playwrightRefs.length ? r.playwrightRefs.map(v => `<div class="mono small">${v}</div>`).join('') : '<span class="small">—</span>'}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
 
-      function textOfRow(tr){ return tr.innerText.toLowerCase(); }
-      function isMissing(tr){ return tr.querySelector('.pill-miss') !== null; }
-
-      function applyFilter(){
-        const v = (q.value || '').toLowerCase();
-        rows.forEach(tr=>{
-          const hit = textOfRow(tr).includes(v);
-          tr.style.display = hit ? '' : 'none';
-        });
-      }
-      q.addEventListener('input', applyFilter);
-
-      let onlyMissing = false;
-      btnMissing.addEventListener('click', ()=>{
-        onlyMissing = !onlyMissing;
-        btnMissing.style.fontWeight = onlyMissing ? '600' : '400';
-        rows.forEach(tr=>{
-          const show = !onlyMissing || isMissing(tr);
-          tr.style.display = show ? '' : 'none';
-        });
-      });
-
-      btnReset.addEventListener('click', ()=>{
-        q.value=''; onlyMissing=false; btnMissing.style.fontWeight='400';
-        rows.forEach(tr=> tr.style.display='');
-      });
-    </script>
-  </body>
-  </html>`;
+    <p class="small" style="margin-top:12px;">
+      * Rapporten visar enbart element vars typ slutar med <code>Task</code> (t.ex. <code>bpmn:task</code>, <code>bpmn:userTask</code>, <code>bpmn:serviceTask</code>).
+    </p>
+  </div>
+</body>
+</html>`;
 }
 
-/* ---------------------------- Main ---------------------------- */
+// ---------- Main ----------
+(async () => {
+  await ensureDir(OUT_DIR);
 
-function main() {
-  if (!fs.existsSync(BPMN_PATH)) {
-    console.error(`❌ BPMN-fil saknas: ${BPMN_PATH}`);
+  const bpmnXML = await readTextIfExists(BPMN_PATH);
+  if (!bpmnXML) {
+    console.error(`❌ Hittar inte BPMN-filen: ${BPMN_PATH}`);
     process.exit(1);
   }
 
-  const bpmn = loadBpmn(BPMN_PATH);
-  const defs = bpmn['bpmn:definitions'] || bpmn.definitions || bpmn;
-  const elements = collectBpmnElements(defs);
+  // 1) Hämta alla Tasks (endast Task-typer)
+  const tasks = extractTasks(bpmnXML); // [{id,name,tag}]
+  // 2) ev. refs från extensionElements
+  const refsById = extractPlaywrightRefsById(bpmnXML);
 
-  const { hitsById } = scanTestsForBpmnTags();
-  const { rows, orphans } = buildReport(elements, hitsById);
+  // 3) Skanna tests efter [bpmn:ID]
+  const ids = tasks.map(t => t.id);
+  const markers = await scanTestMarkers(ids);
 
-  const csv  = toCSV(rows);
-  const html = toHTML(rows, orphans);
-  const json = JSON.stringify({ rows, orphans }, null, 2);
+  // 4) Bygg rader
+  const rows = tasks.map(t => {
+    const testFiles = markers.get(t.id) || [];
+    const playwrightRefs = refsById.get(t.id) || [];
+    return {
+      id: t.id,
+      name: t.name || '',
+      type: t.tag || '',
+      hasTests: testFiles.length > 0 || playwrightRefs.length > 0,
+      testFiles,
+      playwrightRefs
+    };
+  }).sort((a,b) => a.id.localeCompare(b.id));
 
-  // root copies
-  writeText(OUT_ROOT_CSV,  csv);
-  writeText(OUT_ROOT_HTML, html);
-  writeText(OUT_ROOT_JSON, json);
+  const total = rows.length;
+  const covered = rows.filter(r => r.hasTests).length;
+  const uncovered = total - covered;
 
-  // pages copies
-  writeText(OUT_CSV,  csv);
-  writeText(OUT_HTML, html);
-  writeText(OUT_JSON, json);
+  // 5) Skriv ut JSON, CSV, HTML
+  await fs.writeFile(OUT_JSON, JSON.stringify({ summary:{ total, covered, uncovered }, items: rows }, null, 2), 'utf8');
+  await fs.writeFile(OUT_CSV, toCSV(rows), 'utf8');
+  await fs.writeFile(OUT_HTML, toHTML(rows, { total, covered, uncovered }), 'utf8');
 
-  console.log(`✅ Skapade rapporter:
-  - ${path.relative(ROOT, OUT_ROOT_HTML)}
-  - ${path.relative(ROOT, OUT_ROOT_CSV)}
-  - ${path.relative(ROOT, OUT_ROOT_JSON)}
-  - ${path.relative(ROOT, OUT_HTML)}
-  - ${path.relative(ROOT, OUT_CSV)}
-  - ${path.relative(ROOT, OUT_JSON)}
-  `);
-}
-
-main();
+  console.log(`✅ Skrev rapport till:
+  - ${path.relative(REPO_ROOT, OUT_HTML)}
+  - ${path.relative(REPO_ROOT, OUT_JSON)}
+  - ${path.relative(REPO_ROOT, OUT_CSV)}
+  (Tasks-only)`);
+})().catch(err => {
+  console.error('❌ Fel vid generering:', err);
+  process.exit(1);
+});
